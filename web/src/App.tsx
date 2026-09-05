@@ -1,16 +1,27 @@
-// src/App.tsx
 import React, { useState } from 'react';
 import './App.css';
 import { AuthForm } from "./components/ui/AuthForm";
 import Dashboard from './pages/Dashboard';
+import { normalizeHost } from './utils/host';
+
+function loadStoredHost(): string | null {
+  const raw = localStorage.getItem('lynceus_host');
+  if (!raw) return null;
+  try {
+    return normalizeHost(raw);
+  } catch {
+    localStorage.removeItem('lynceus_host');
+    localStorage.removeItem('lynceus_key');
+    return null;
+  }
+}
 
 export const App: React.FC = () => {
+  const [storedHost] = useState<string | null>(loadStoredHost());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
-    Boolean(localStorage.getItem('lynceus_host') && localStorage.getItem('lynceus_key'))
+    Boolean(storedHost && localStorage.getItem('lynceus_key'))
   );
-  const [hostAddress, setHostAddress] = useState<string>(
-    localStorage.getItem('lynceus_host') || ''
-  );
+  const [hostAddress, setHostAddress] = useState<string>(storedHost || '');
 
   const handleConnect = (host: string, key: string) => {
     localStorage.setItem('lynceus_host', host);

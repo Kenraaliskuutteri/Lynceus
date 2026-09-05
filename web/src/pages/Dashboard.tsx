@@ -1,12 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ServerNode } from '../types/telemetry';
 import { ServerCard } from '../components/ServerCard';
+import { ServerDetail } from './ServerDetail';
+import { fetchServers } from '../services/api';
 
-interface DashboardProps {
-  nodes?: ServerNode[];
-}
+export const Dashboard: React.FC = () => {
+  const [nodes, setNodes] = useState<ServerNode[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-export const Dashboard: React.FC<DashboardProps> = ({ nodes = [] }) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const data = await fetchServers();
+        if (!cancelled) setNodes(data);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load servers');
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 10000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
+
+  if (selectedNode) {
+    return <ServerDetail node={selectedNode} onBack={() => setSelectedId(null)} />;
+  }
+
   return (
     <div className="dashboard-page">
       <div className="content-page" style={{ padding: 0 }}>
@@ -16,6 +45,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ nodes = [] }) => {
             {nodes.length} {nodes.length === 1 ? 'NODE' : 'NODES'} ACTIVE
           </span>
         </div>
+
+        {error && <div className="error-alert">{error}</div>}
 
         {nodes.length === 0 ? (
           <div className="panel" style={{ marginTop: '20px' }}>
@@ -33,16 +64,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ nodes = [] }) => {
             </pre>
           </div>
         ) : (
-          <div 
-            style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-              gap: '20px', 
-              marginTop: '20px' 
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+              gap: '20px',
+              marginTop: '20px',
             }}
           >
             {nodes.map((node) => (
-              <ServerCard key={node.id || node.hostname} node={node} />
+              <ServerCard key={node.id || node.hostname} node={node} onSelect={() => setSelectedId(node.id)} />
             ))}
           </div>
         )}

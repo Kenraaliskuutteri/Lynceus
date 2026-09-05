@@ -1,5 +1,6 @@
-    // src/components/AuthForm.tsx
 import React, { useState } from 'react';
+import { normalizeHost } from '../../utils/host';
+import { isValidHeaderValue } from '../../utils/validation';
 
 interface AuthFormProps {
   onConnect: (host: string, key: string) => void;
@@ -28,7 +29,21 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onConnect }) => {
       return;
     }
 
-    onConnect(hostAddress, secretKey);
+    const trimmedKey = secretKey.trim();
+    if (!isValidHeaderValue(trimmedKey)) {
+      setErrorMessage('Master API Key contains invalid characters (check for smart quotes or line breaks from copy-paste).');
+      return;
+    }
+
+    let normalized: string;
+    try {
+      normalized = normalizeHost(hostAddress);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Invalid host endpoint.');
+      return;
+    }
+
+    onConnect(normalized, trimmedKey);
   };
 
   return (
