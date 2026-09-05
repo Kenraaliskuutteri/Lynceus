@@ -15,10 +15,14 @@ The architecture consists of a lightweight C daemon running directly on monitore
 ## Interface Preview
 
 ### Authentication & Host Connection
-![Lynceus Login Screen](./assets/lynclogin.png)
+<p align="center">
+  <img src="./assets/lynclogin.png" alt="Lynceus Login Screen" />
+</p>
 
 ### Cluster Telemetry View
-![Lynceus Dashboard Overview](./assets/lyncmainmenu.png)
+<p align="center">
+  <img src="./assets/lyncmainmenu.png" alt="Lynceus Dashboard Overview" />
+</p>
 
 ## Tech Stack
 
@@ -44,5 +48,5 @@ The architecture consists of a lightweight C daemon running directly on monitore
 
 1. Clone the repository:
    ```bash
-   git clone [https://github.com/Kenraaliskuutteri/Lynceus.git](https://github.com/Kenraaliskuutteri/Lynceus.git)
+   git clone https://github.com/Kenraaliskuutteri/Lynceus.git
    cd Lynceus
