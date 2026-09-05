@@ -1,0 +1,9 @@
+host=127.0.0.1
+port=8000
+id=node-1
+key=changeme
+interval=2
+tls=false
+insecure=false
+pidfile=/run/lynceus-agent.pid
+log_file=/var/log/lynceus-agent.log

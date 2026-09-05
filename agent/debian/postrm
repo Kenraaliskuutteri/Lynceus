@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        rm -rf /etc/lynceus /var/log/lynceus
+        if getent passwd lynceus >/dev/null; then
+            deluser --system lynceus >/dev/null 2>&1 || true
+        fi
+        if getent group lynceus >/dev/null; then
+            delgroup --system lynceus >/dev/null 2>&1 || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

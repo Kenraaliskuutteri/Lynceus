@@ -1,0 +1,4 @@
+22ee1c82c3fa9dbcad98611992e01319  lib/systemd/system/lynceus-agent.service
+c91dec3c9dcc4f47d53b15eaa984287c  usr/bin/lynceus-agent
+cbc72ab88cc17de6c9ca982ceffe4738  usr/share/doc/lynceus-agent/changelog.gz
+c08515767f4446292807674b70464bea  usr/share/doc/lynceus-agent/copyright

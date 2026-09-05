@@ -1,0 +1,3 @@
+shlibs:Depends=libc6 (>= 2.34), libwebsockets17 (>= 1.7.0)
+misc:Depends=
+misc:Pre-Depends=

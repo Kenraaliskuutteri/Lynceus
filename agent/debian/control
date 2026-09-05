@@ -1,0 +1,15 @@
+Source: lynceus-agent
+Section: admin
+Priority: optional
+Maintainer: Kenraaliskuutteri <aleksi.puhakainen@gmail.com>
+Build-Depends: debhelper-compat (= 13), cmake, pkg-config, libwebsockets-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/Kenraaliskuutteri/Lynceus
+
+Package: lynceus-agent
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
+Description: Lightweight system telemetry agent for Lynceus
+ Collects CPU, RAM, disk and network metrics from /proc and streams
+ them to a Lynceus monitoring server over WebSocket. Runs as a
+ systemd service under a dedicated unprivileged user.

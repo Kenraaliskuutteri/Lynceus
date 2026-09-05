@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if ! getent group lynceus >/dev/null; then
+            addgroup --system lynceus
+        fi
+        if ! getent passwd lynceus >/dev/null; then
+            adduser --system --ingroup lynceus --no-create-home \
+                --home /nonexistent --shell /usr/sbin/nologin \
+                --gecos "Lynceus agent" lynceus
+        fi
+
+        if [ ! -e /etc/lynceus/agent.conf ]; then
+            install -o root -g lynceus -m 0640 \
+                /etc/lynceus/lynceus-agent.conf.example /etc/lynceus/agent.conf
+        fi
+
+        chown -R lynceus:lynceus /var/log/lynceus
+
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -102,7 +102,7 @@ wsclient_t *wsclient_create(const char *host, int port, const char *path, int us
     client->use_tls = use_tls;
     client->insecure_tls = insecure_tls;
 
-    client->protocols[0].name = "lynceus-agent";
+    client->protocols[0].name = "lynceus-daemon";
     client->protocols[0].callback = lws_event_callback;
     client->protocols[0].per_session_data_size = 0;
     client->protocols[0].rx_buffer_size = 4096;

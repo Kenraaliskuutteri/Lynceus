@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: lynceus-agent
+Source: https://github.com/Kenraaliskuutteri/Lynceus
+
+Files: *
+Copyright: 2026 Kenraaliskuutteri
+License: MIT

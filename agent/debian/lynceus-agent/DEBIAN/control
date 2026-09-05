@@ -1,0 +1,13 @@
+Package: lynceus-agent
+Version: 0.1.0
+Architecture: amd64
+Maintainer: Kenraaliskuutteri <aleksi.puhakainen@gmail.com>
+Installed-Size: 48
+Depends: libc6 (>= 2.34), libwebsockets17 (>= 1.7.0), adduser
+Section: admin
+Priority: optional
+Homepage: https://github.com/Kenraaliskuutteri/Lynceus
+Description: Lightweight system telemetry agent for Lynceus
+ Collects CPU, RAM, disk and network metrics from /proc and streams
+ them to a Lynceus monitoring server over WebSocket. Runs as a
+ systemd service under a dedicated unprivileged user.

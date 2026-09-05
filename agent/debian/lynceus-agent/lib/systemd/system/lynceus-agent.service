@@ -1,0 +1,19 @@
+[Unit]
+Description=Lynceus monitoring agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/lynceus-agent --config /etc/lynceus/agent.conf
+Restart=on-failure
+RestartSec=5
+User=lynceus
+Group=lynceus
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

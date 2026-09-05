@@ -1,5 +1,7 @@
 # Lynceus
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-green.svg)]()[![Build Status](https://img.shields.io/badge/build-testing-cyan.svg)]()
+
 Lynceus is a hybrid system monitoring platform designed to bridge low-level C telemetry collection with modern, real-time web visualization. 
 
 The architecture consists of a lightweight C daemon running directly on monitored Linux hosts, an asynchronous Python backend handling persistent storage and stream orchestration, and a React frontend for dynamic status visualization.
@@ -9,6 +11,14 @@ The architecture consists of a lightweight C daemon running directly on monitore
 1. **Agent (C11):** Interrogates Linux `/proc` interfaces (`/proc/stat`, `/proc/meminfo`, `/proc/net/dev`) to sample performance metrics with minimal system overhead, streaming payloads over WebSockets.
 2. **Backend (Python / FastAPI):** Handles concurrent WebSocket connections from distributed agents, persists timeseries logs to PostgreSQL, and broadcasts real-time telemetry to connected dashboard clients.
 3. **Frontend (React / TypeScript):** Renders live, responsive metric charts via Recharts, featuring connection status tracking and automated threshold warnings.
+
+## Interface Preview
+
+### Authentication & Host Connection
+![Lynceus Login Screen](./assets/lynclogin.png)
+
+### Cluster Telemetry View
+![Lynceus Dashboard Overview](./assets/lyncmainmenu.png)
 
 ## Tech Stack
 
@@ -34,5 +44,5 @@ The architecture consists of a lightweight C daemon running directly on monitore
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Kenraaliskuutteri/Lynceus.git
+   git clone [https://github.com/Kenraaliskuutteri/Lynceus.git](https://github.com/Kenraaliskuutteri/Lynceus.git)
    cd Lynceus
