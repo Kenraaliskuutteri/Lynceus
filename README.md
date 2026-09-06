@@ -11,6 +11,7 @@ The architecture consists of a lightweight C daemon running directly on monitore
 1. **Agent (C11):** Interrogates Linux `/proc` interfaces (`/proc/stat`, `/proc/meminfo`, `/proc/net/dev`) to sample performance metrics with minimal system overhead, streaming payloads over WebSockets.
 2. **Backend (Python / FastAPI):** Handles concurrent WebSocket connections from distributed agents, persists timeseries logs to PostgreSQL, and broadcasts real-time telemetry to connected dashboard clients.
 3. **Frontend (React / TypeScript):** Renders live, responsive metric charts via Recharts, featuring connection status tracking and automated threshold warnings.
+4. **AI Implementation** Whilst not directly shown anywhere in the app or the daemon. Usage of Large language models (Such as Claude Code, Google Gemini ...) has been used for Fixing code, writing some parts of the app and fixing some issues with server to app conections.
 
 ## Interface Preview
 
