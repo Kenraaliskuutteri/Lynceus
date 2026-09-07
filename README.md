@@ -25,6 +25,11 @@ The architecture consists of a lightweight C daemon running directly on monitore
   <img src="./assets/lyncmainmenu.png" alt="Lynceus Dashboard Overview" />
 </p>
 
+### Server Monitoring View
+<p aling="center">
+  <img src="./assets/lyncserver.png" alt="Lynceus Server Monitoring Dashboard Overview">
+</p>
+
 ## Tech Stack
 
 * **Agent Layer:** C11, POSIX Threads, Native Sockets, libwebsockets

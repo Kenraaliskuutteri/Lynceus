@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ServerNode } from '../types/telemetry';
 import { useMetrics } from '../hooks/useMetrics';
+import { useThresholdAlerts } from '../hooks/useThresholdAlerts';
+import { loadThresholds } from '../utils/thresholds';
 import { CpuChart } from '../components/charts/CpuChart';
 import { MemoryChart } from '../components/charts/MemoryChart';
 import { NetworkChart } from '../components/charts/NetworkChart';
+import { AlertBanner } from '../components/AlertBanner';
+import { ThresholdSettings } from '../components/ThresholdSettings';
 
 interface Props {
   node: ServerNode;
@@ -12,6 +16,9 @@ interface Props {
 
 export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
   const { history, status } = useMetrics(node.id);
+  const [thresholds, setThresholds] = useState(loadThresholds());
+  const latest = history[history.length - 1] ?? null;
+  const activeAlerts = useThresholdAlerts(node.hostname, latest, thresholds);
 
   return (
     <div className="content-page" style={{ padding: 0 }}>
@@ -25,6 +32,9 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
         </div>
         <span className="panel-kicker">{status === 'open' ? 'STREAMING' : status.toUpperCase()}</span>
       </div>
+
+      <AlertBanner alerts={activeAlerts} />
+      <ThresholdSettings thresholds={thresholds} onChange={setThresholds} />
 
       {history.length === 0 ? (
         <div className="panel">
