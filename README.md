@@ -2,6 +2,10 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-green.svg)]()[![Build Status](https://img.shields.io/badge/build-testing-cyan.svg)]()
 
+Lynceus is currently under active development.
+
+The core architecture is being built and tested. The project is not yet intended to replace established production monitoring solutions, but early testers, feedback, and contributors are welcome.
+
 Lynceus is a hybrid system monitoring platform designed to bridge low-level C telemetry collection with modern, real-time web visualization. 
 
 The architecture consists of a lightweight C daemon running directly on monitored Linux hosts, an asynchronous Python backend handling persistent storage and stream orchestration, and a React frontend for dynamic status visualization.
