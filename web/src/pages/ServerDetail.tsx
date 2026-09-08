@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ServerNode } from '../types/telemetry';
 import { useMetrics } from '../hooks/useMetrics';
 import { useThresholdAlerts } from '../hooks/useThresholdAlerts';
-import { loadThresholds } from '../utils/thresholds';
+import { DEFAULT_THRESHOLDS } from '../utils/thresholds';
 import { CpuChart } from '../components/charts/CpuChart';
 import { MemoryChart } from '../components/charts/MemoryChart';
 import { NetworkChart } from '../components/charts/NetworkChart';
 import { AlertBanner } from '../components/AlertBanner';
-import { ThresholdSettings } from '../components/ThresholdSettings';
+import { MetricStats } from '../components/MetricStats';
 
 interface Props {
   node: ServerNode;
@@ -16,9 +16,8 @@ interface Props {
 
 export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
   const { history, status } = useMetrics(node.id);
-  const [thresholds, setThresholds] = useState(loadThresholds());
   const latest = history[history.length - 1] ?? null;
-  const activeAlerts = useThresholdAlerts(node.hostname, latest, thresholds);
+  const activeAlerts = useThresholdAlerts(node.hostname, latest, DEFAULT_THRESHOLDS);
 
   return (
     <div className="content-page" style={{ padding: 0 }}>
@@ -34,7 +33,6 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
       </div>
 
       <AlertBanner alerts={activeAlerts} />
-      <ThresholdSettings thresholds={thresholds} onChange={setThresholds} />
 
       {history.length === 0 ? (
         <div className="panel">
@@ -45,11 +43,14 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
           <p>No metric frames received yet for this node.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: '20px' }}>
-          <CpuChart data={history} />
-          <MemoryChart data={history} />
-          <NetworkChart data={history} />
-        </div>
+        <>
+          <MetricStats data={history} />
+          <div style={{ display: 'grid', gap: '20px' }}>
+            <CpuChart data={history} />
+            <MemoryChart data={history} />
+            <NetworkChart data={history} />
+          </div>
+        </>
       )}
     </div>
   );
