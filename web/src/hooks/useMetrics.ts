@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { SystemMetrics } from '../types/telemetry';
+import { fetchHistory } from '../services/api';
 
-const HISTORY_LIMIT = 60;
+const LIVE_BUFFER_LIMIT = 500;
 
-export function useMetrics(serverId: string | null) {
+export function useMetrics(serverId: string | null, rangeMinutes: number = 60) {
   const [history, setHistory] = useState<SystemMetrics[]>([]);
 
   const wsUrl = useMemo(() => {
@@ -20,13 +21,28 @@ export function useMetrics(serverId: string | null) {
 
   useEffect(() => {
     setHistory([]);
-  }, [serverId]);
+    if (!serverId) return;
+
+    let cancelled = false;
+
+    fetchHistory(serverId, rangeMinutes)
+      .then((rows) => {
+        if (!cancelled) setHistory(rows.slice(-LIVE_BUFFER_LIMIT));
+      })
+      .catch(() => {
+        return;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [serverId, rangeMinutes]);
 
   useEffect(() => {
     if (!lastMessage) return;
     try {
       const metric: SystemMetrics = JSON.parse(lastMessage.data);
-      setHistory((prev) => [...prev.slice(-(HISTORY_LIMIT - 1)), metric]);
+      setHistory((prev) => [...prev.slice(-(LIVE_BUFFER_LIMIT - 1)), metric]);
     } catch {
       return;
     }

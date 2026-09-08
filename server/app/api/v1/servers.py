@@ -57,3 +57,64 @@ def list_servers(db: Session = Depends(get_db)):
         )
 
     return result
+
+
+TARGET_POINTS = 200
+
+
+def downsample(rows: list[MetricLog]) -> list[SystemMetrics]:
+    if len(rows) <= TARGET_POINTS:
+        return [
+            SystemMetrics(
+                timestamp=int(row.timestamp.replace(tzinfo=timezone.utc).timestamp() * 1000),
+                cpuUsage=row.cpu_usage,
+                ramUsage=row.ram_usage,
+                diskUsage=row.disk_usage,
+                networkRxKb=row.network_rx_kb,
+                networkTxKb=row.network_tx_kb,
+            )
+            for row in rows
+        ]
+
+    bucket_size = len(rows) / TARGET_POINTS
+    result = []
+
+    for i in range(TARGET_POINTS):
+        start = int(i * bucket_size)
+        end = int((i + 1) * bucket_size)
+        chunk = rows[start:end]
+        if not chunk:
+            continue
+
+        count = len(chunk)
+        avg_ts = int(
+            sum(row.timestamp.replace(tzinfo=timezone.utc).timestamp() for row in chunk) / count * 1000
+        )
+
+        result.append(
+            SystemMetrics(
+                timestamp=avg_ts,
+                cpuUsage=sum(row.cpu_usage for row in chunk) / count,
+                ramUsage=sum(row.ram_usage for row in chunk) / count,
+                diskUsage=sum(row.disk_usage for row in chunk) / count,
+                networkRxKb=sum(row.network_rx_kb for row in chunk) / count,
+                networkTxKb=sum(row.network_tx_kb for row in chunk) / count,
+            )
+        )
+
+    return result
+
+
+@router.get("/servers/{server_id}/history", response_model=list[SystemMetrics], response_model_by_alias=True)
+def get_history(server_id: str, minutes: int = 60, db: Session = Depends(get_db)):
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+
+    rows = (
+        db.query(MetricLog)
+        .filter(MetricLog.server_id == server_id, MetricLog.timestamp >= cutoff)
+        .order_by(MetricLog.timestamp.asc())
+        .limit(20000)
+        .all()
+    )
+
+    return downsample(rows)

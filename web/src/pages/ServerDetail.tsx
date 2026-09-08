@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ServerNode } from '../types/telemetry';
 import { useMetrics } from '../hooks/useMetrics';
 import { useThresholdAlerts } from '../hooks/useThresholdAlerts';
@@ -8,6 +8,7 @@ import { MemoryChart } from '../components/charts/MemoryChart';
 import { NetworkChart } from '../components/charts/NetworkChart';
 import { AlertBanner } from '../components/AlertBanner';
 import { MetricStats } from '../components/MetricStats';
+import { RangeSelector } from '../components/RangeSelector';
 
 interface Props {
   node: ServerNode;
@@ -15,7 +16,8 @@ interface Props {
 }
 
 export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
-  const { history, status } = useMetrics(node.id);
+  const [rangeMinutes, setRangeMinutes] = useState(60);
+  const { history, status } = useMetrics(node.id, rangeMinutes);
   const latest = history[history.length - 1] ?? null;
   const activeAlerts = useThresholdAlerts(node.hostname, latest, DEFAULT_THRESHOLDS);
 
@@ -33,6 +35,7 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
       </div>
 
       <AlertBanner alerts={activeAlerts} />
+      <RangeSelector value={rangeMinutes} onChange={setRangeMinutes} />
 
       {history.length === 0 ? (
         <div className="panel">
@@ -40,7 +43,7 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
             <span className="panel-kicker">Inactive Stream</span>
             <h2>Waiting for Telemetry</h2>
           </div>
-          <p>No metric frames received yet for this node.</p>
+          <p>No metric frames received yet for this node in this range.</p>
         </div>
       ) : (
         <>

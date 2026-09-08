@@ -1,4 +1,4 @@
-import { ServerNode } from '../types/telemetry';
+import { ServerNode, SystemMetrics } from '../types/telemetry';
 import { isValidHeaderValue } from '../utils/validation';
 
 function getHost(): string | null {
@@ -24,6 +24,21 @@ export async function fetchServers(): Promise<ServerNode[]> {
 
   if (!response.ok) {
     throw new Error(`Failed to fetch servers: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchHistory(serverId: string, minutes = 60): Promise<SystemMetrics[]> {
+  const host = getHost();
+  if (!host) throw new Error('No host configured');
+
+  const response = await fetch(`${host}/api/v1/servers/${serverId}/history?minutes=${minutes}`, {
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch history: ${response.status}`);
   }
 
   return response.json();
