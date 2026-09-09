@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ORIGINS
 from app.core.database import init_db
 from app.api.v1 import servers as servers_api
+from app.api.v1 import alerts as alerts_api
 from app.websockets import metrics_ws
 
 app = FastAPI(title="Lynceus")
@@ -23,6 +24,7 @@ def on_startup():
 
 
 app.include_router(servers_api.router, prefix="/api/v1")
+app.include_router(alerts_api.router, prefix="/api/v1")
 app.include_router(metrics_ws.router, prefix="/api/v1")
 
 

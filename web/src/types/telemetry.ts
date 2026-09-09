@@ -15,3 +15,14 @@ export interface ServerNode {
   lastSeen: string | null;
   metrics: SystemMetrics | null;
 }
+
+export interface AlertEvent {
+  id: number;
+  serverId: string;
+  metric: string;
+  value: number;
+  threshold: number;
+  status: 'triggered' | 'resolved';
+  triggeredAt: string;
+  resolvedAt: string | null;
+}

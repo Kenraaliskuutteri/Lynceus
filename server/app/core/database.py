@@ -19,6 +19,6 @@ def get_db():
 
 
 def init_db():
-    from app.models import server, metric_log  # noqa: F401
+    from app.models import server, metric_log, alert  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)   

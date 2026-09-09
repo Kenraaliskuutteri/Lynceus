@@ -5,6 +5,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.alerts import evaluate_alerts
 from app.models.server import Server
 from app.models.metric_log import MetricLog
 
@@ -55,6 +56,7 @@ def persist_metric(db: Session, server_id: str, payload: dict):
     )
     db.add(log)
     db.commit()
+    evaluate_alerts(db, server_id, payload, now)
 
 
 @router.websocket("/ws/metrics/{server_id}")

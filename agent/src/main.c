@@ -122,13 +122,15 @@ int main(int argc, char **argv) {
 
         int64_t t = now_ms();
         if (t - last_sample_ms >= interval_ms) {
+            fprintf(stderr, "sample attempt at t=%lld (delta=%lld ms)\n", (long long)t, (long long)(t - last_sample_ms));
             if (is_connected) {
                 system_metrics_t metrics;
                 if (collector_sample(&state, &metrics) == 0) {
                     char json[512];
                     int n = metrics_to_json(&metrics, json, sizeof(json));
                     if (n > 0) {
-                        wsclient_send(client, json, (size_t)n);
+                        int rc = wsclient_send(client, json, (size_t)n);
+                        fprintf(stderr, "wsclient_send rc=%d\n", rc);
                     }
                 }
             }
