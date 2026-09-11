@@ -9,19 +9,16 @@
 #include <signal.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <time.h>
 
 static volatile sig_atomic_t g_running = 1;
+static wsclient_t *g_client_instance = NULL;
 
 static void handle_signal(int sig) {
     (void)sig;
     g_running = 0;
-}
-
-static int64_t now_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    if (g_client_instance) {
+        wsclient_wake(g_client_instance);
+    }
 }
 
 static void print_usage(const char *prog) {
@@ -29,6 +26,33 @@ static void print_usage(const char *prog) {
         "usage: %s [--config PATH] --host HOST --id SERVER_ID --key KEY\n"
         "       [--port PORT] [--interval SECONDS] [--tls] [--insecure]\n"
         "       [--daemon] [--pidfile PATH] [--log-file PATH]\n", prog);
+}
+
+typedef struct {
+    collector_state_t collector;
+    agent_config_t *cfg;
+} agent_app_t;
+
+static void on_sample_tick(wsclient_t *client, void *user_data) {
+    agent_app_t *app = (agent_app_t *)user_data;
+    system_metrics_t metrics;
+    if (collector_sample(&app->collector, &metrics) == 0) {
+        if (wsclient_is_connected(client)) {
+            char json[512];
+            int n = metrics_to_json(&metrics, json, sizeof(json));
+            if (n > 0) {
+                wsclient_send(client, json, (size_t)n);
+            }
+        }
+    }
+}
+
+static void on_connection_state_changed(wsclient_t *client, int connected, void *user_data) {
+    (void)client;
+    agent_app_t *app = (agent_app_t *)user_data;
+    printf(connected ? "connected to %s:%d\n" : "disconnected from %s:%d\n",
+           app->cfg->host, app->cfg->port);
+    fflush(stdout);
 }
 
 int main(int argc, char **argv) {
@@ -96,48 +120,25 @@ int main(int argc, char **argv) {
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
 
+    agent_app_t app;
+    app.cfg = &cfg;
+    collector_init(&app.collector);
+
     wsclient_t *client = wsclient_create(cfg.host, cfg.port, path, cfg.use_tls, cfg.insecure_tls);
     if (!client) {
         fprintf(stderr, "failed to create websocket client\n");
         return 1;
     }
 
-    collector_state_t state;
-    collector_init(&state);
-
-    int64_t last_sample_ms = now_ms();
-    int64_t interval_ms = (int64_t)cfg.interval_sec * 1000;
-    int was_connected = 0;
+    g_client_instance = client;
+    wsclient_set_connection_cb(client, on_connection_state_changed, &app);
+    wsclient_set_periodic_timer(client, cfg.interval_sec * 1000, on_sample_tick, &app);
 
     while (g_running) {
-        wsclient_service(client, 50);
-
-        int is_connected = wsclient_is_connected(client);
-        if (is_connected != was_connected) {
-            printf(is_connected ? "connected to %s:%d\n" : "disconnected from %s:%d\n",
-                   cfg.host, cfg.port);
-            fflush(stdout);
-            was_connected = is_connected;
-        }
-
-        int64_t t = now_ms();
-        if (t - last_sample_ms >= interval_ms) {
-            fprintf(stderr, "sample attempt at t=%lld (delta=%lld ms)\n", (long long)t, (long long)(t - last_sample_ms));
-            if (is_connected) {
-                system_metrics_t metrics;
-                if (collector_sample(&state, &metrics) == 0) {
-                    char json[512];
-                    int n = metrics_to_json(&metrics, json, sizeof(json));
-                    if (n > 0) {
-                        int rc = wsclient_send(client, json, (size_t)n);
-                        fprintf(stderr, "wsclient_send rc=%d\n", rc);
-                    }
-                }
-            }
-            last_sample_ms = t;
-        }
+        wsclient_service(client, 0);
     }
 
+    g_client_instance = NULL;
     wsclient_destroy(client);
     return 0;
 }

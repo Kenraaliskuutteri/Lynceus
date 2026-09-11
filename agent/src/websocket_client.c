@@ -3,9 +3,15 @@
 #include <libwebsockets.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
-#define RECONNECT_DELAY_MS 3000 // If you arent happy with waiting 30seconds then tough luck.
+#define RECONNECT_DELAY_MS 3000
+#define MAX_QUEUE_DEPTH 50
+
+typedef struct msg_queue_item {
+    unsigned char *buf;
+    size_t len;
+    struct msg_queue_item *next;
+} msg_queue_item_t;
 
 struct wsclient {
     struct lws_context *context;
@@ -17,18 +23,49 @@ struct wsclient {
     int use_tls;
     int insecure_tls;
     int connected;
-    int64_t last_connect_attempt_ms;
-    unsigned char *pending;
-    size_t pending_len;
-    size_t pending_capacity;
+
+    lws_sorted_usec_list_t sul_reconnect;
+    lws_sorted_usec_list_t sul_timer;
+
+    wsclient_timer_cb timer_cb;
+    void *timer_user_data;
+    int timer_interval_ms;
+
+    wsclient_conn_cb conn_cb;
+    void *conn_user_data;
+
+    msg_queue_item_t *queue_head;
+    msg_queue_item_t *queue_tail;
+    size_t queue_count;
 };
 
-static wsclient_t *g_client = NULL;
+static void try_connect(wsclient_t *client);
 
-static int64_t now_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+static void on_reconnect_timer(lws_sorted_usec_list_t *sul) {
+    wsclient_t *client = lws_container_of(sul, wsclient_t, sul_reconnect);
+    if (!client->connected && !client->wsi) {
+        try_connect(client);
+    }
+}
+
+static void on_sample_timer(lws_sorted_usec_list_t *sul) {
+    wsclient_t *client = lws_container_of(sul, wsclient_t, sul_timer);
+    if (client->timer_cb) {
+        client->timer_cb(client, client->timer_user_data);
+    }
+    lws_sul_schedule(client->context, 0, &client->sul_timer,
+                     on_sample_timer, (lws_usec_t)client->timer_interval_ms * LWS_US_PER_MS);
+}
+
+static void clear_queue(wsclient_t *client) {
+    while (client->queue_head) {
+        msg_queue_item_t *item = client->queue_head;
+        client->queue_head = item->next;
+        free(item->buf);
+        free(item);
+    }
+    client->queue_tail = NULL;
+    client->queue_count = 0;
 }
 
 static int lws_event_callback(struct lws *wsi, enum lws_callback_reasons reason,
@@ -37,26 +74,57 @@ static int lws_event_callback(struct lws *wsi, enum lws_callback_reasons reason,
     (void)in;
     (void)len;
 
-    if (!g_client) return 0;
+    struct lws_context *ctx = lws_get_context(wsi);
+    wsclient_t *client = (wsclient_t *)lws_context_user(ctx);
+    if (!client) return 0;
 
     switch (reason) {
         case LWS_CALLBACK_CLIENT_ESTABLISHED:
-            g_client->connected = 1;
+            client->connected = 1;
+            lws_sul_cancel(&client->sul_reconnect);
+            if (client->conn_cb) {
+                client->conn_cb(client, 1, client->conn_user_data);
+            }
+            if (client->queue_head) {
+                lws_callback_on_writable(wsi);
+            }
             break;
 
         case LWS_CALLBACK_CLIENT_WRITEABLE:
-            if (g_client->pending_len > 0) {
-                lws_write(wsi, g_client->pending + LWS_PRE, g_client->pending_len,
-                          LWS_WRITE_TEXT);
-                g_client->pending_len = 0;
+            while (client->queue_head) {
+                msg_queue_item_t *item = client->queue_head;
+                int n = lws_write(wsi, item->buf + LWS_PRE, item->len, LWS_WRITE_TEXT);
+                if (n < 0) {
+                    break;
+                }
+                client->queue_head = item->next;
+                if (!client->queue_head) {
+                    client->queue_tail = NULL;
+                }
+                free(item->buf);
+                free(item);
+                client->queue_count--;
+
+                if (lws_send_pipe_choked(wsi)) {
+                    lws_callback_on_writable(wsi);
+                    break;
+                }
             }
             break;
 
         case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-        case LWS_CALLBACK_CLOSED:
-            g_client->connected = 0;
-            g_client->wsi = NULL;
+        case LWS_CALLBACK_CLOSED: {
+            int was_connected = client->connected;
+            client->connected = 0;
+            client->wsi = NULL;
+            clear_queue(client);
+            if (was_connected && client->conn_cb) {
+                client->conn_cb(client, 0, client->conn_user_data);
+            }
+            lws_sul_schedule(client->context, 0, &client->sul_reconnect,
+                             on_reconnect_timer, (lws_usec_t)RECONNECT_DELAY_MS * LWS_US_PER_MS);
             break;
+        }
 
         default:
             break;
@@ -86,10 +154,13 @@ static void try_connect(wsclient_t *client) {
     info.protocol = client->protocols[0].name;
     info.ssl_connection = ssl_flags;
     info.pwsi = &client->wsi;
+    info.userdata = client;
 
     client->wsi = NULL;
-    lws_client_connect_via_info(&info);
-    client->last_connect_attempt_ms = now_ms();
+    if (!lws_client_connect_via_info(&info)) {
+        lws_sul_schedule(client->context, 0, &client->sul_reconnect,
+                         on_reconnect_timer, (lws_usec_t)RECONNECT_DELAY_MS * LWS_US_PER_MS);
+    }
 }
 
 wsclient_t *wsclient_create(const char *host, int port, const char *path, int use_tls, int insecure_tls) {
@@ -113,6 +184,7 @@ wsclient_t *wsclient_create(const char *host, int port, const char *path, int us
     ctx_info.port = CONTEXT_PORT_NO_LISTEN;
     ctx_info.protocols = client->protocols;
     ctx_info.options = LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+    ctx_info.user = client;
 
     client->context = lws_create_context(&ctx_info);
     if (!client->context) {
@@ -120,38 +192,67 @@ wsclient_t *wsclient_create(const char *host, int port, const char *path, int us
         return NULL;
     }
 
-    g_client = client;
     try_connect(client);
-
     return client;
 }
 
+int wsclient_set_periodic_timer(wsclient_t *client, int interval_ms, wsclient_timer_cb cb, void *user_data) {
+    if (!client || interval_ms <= 0) return -1;
+
+    client->timer_cb = cb;
+    client->timer_user_data = user_data;
+    client->timer_interval_ms = interval_ms;
+
+    lws_sul_schedule(client->context, 0, &client->sul_timer,
+                     on_sample_timer, (lws_usec_t)interval_ms * LWS_US_PER_MS);
+    return 0;
+}
+
+void wsclient_set_connection_cb(wsclient_t *client, wsclient_conn_cb cb, void *user_data) {
+    if (!client) return;
+    client->conn_cb = cb;
+    client->conn_user_data = user_data;
+}
+
 int wsclient_service(wsclient_t *client, int timeout_ms) {
-    if (!client) return -1;
-
-    if (!client->connected && !client->wsi) {
-        if (now_ms() - client->last_connect_attempt_ms >= RECONNECT_DELAY_MS) {
-            try_connect(client);
-        }
-    }
-
-    lws_service(client->context, timeout_ms);
+    if (!client || !client->context) return -1;
+    (void)timeout_ms;
+    lws_service(client->context, 0);
     return client->connected;
 }
 
 int wsclient_send(wsclient_t *client, const char *data, size_t len) {
     if (!client || !client->connected || !client->wsi) return -1;
 
-    size_t needed = LWS_PRE + len;
-    if (needed > client->pending_capacity) {
-        unsigned char *buf = realloc(client->pending, needed);
-        if (!buf) return -1;
-        client->pending = buf;
-        client->pending_capacity = needed;
+    if (client->queue_count >= MAX_QUEUE_DEPTH) {
+        msg_queue_item_t *old = client->queue_head;
+        client->queue_head = old->next;
+        if (!client->queue_head) client->queue_tail = NULL;
+        free(old->buf);
+        free(old);
+        client->queue_count--;
     }
 
-    memcpy(client->pending + LWS_PRE, data, len);
-    client->pending_len = len;
+    msg_queue_item_t *item = malloc(sizeof(msg_queue_item_t));
+    if (!item) return -1;
+
+    item->buf = malloc(LWS_PRE + len);
+    if (!item->buf) {
+        free(item);
+        return -1;
+    }
+    memcpy(item->buf + LWS_PRE, data, len);
+    item->len = len;
+    item->next = NULL;
+
+    if (client->queue_tail) {
+        client->queue_tail->next = item;
+        client->queue_tail = item;
+    } else {
+        client->queue_head = item;
+        client->queue_tail = item;
+    }
+    client->queue_count++;
 
     lws_callback_on_writable(client->wsi);
     return 0;
@@ -161,10 +262,24 @@ int wsclient_is_connected(wsclient_t *client) {
     return client && client->connected;
 }
 
+void wsclient_wake(wsclient_t *client) {
+    if (client && client->context) {
+        lws_cancel_service(client->context);
+    }
+}
+
 void wsclient_destroy(wsclient_t *client) {
     if (!client) return;
-    if (client->context) lws_context_destroy(client->context);
-    free(client->pending);
-    if (g_client == client) g_client = NULL;
+
+    if (client->context) {
+        lws_sul_cancel(&client->sul_timer);
+        lws_sul_cancel(&client->sul_reconnect);
+    }
+
+    clear_queue(client);
+
+    if (client->context) {
+        lws_context_destroy(client->context);
+    }
     free(client);
 }

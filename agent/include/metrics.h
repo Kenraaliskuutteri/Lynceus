@@ -18,7 +18,7 @@ typedef struct {
     uint64_t idle;
     uint64_t rx_bytes;
     uint64_t tx_bytes;
-    int64_t timestamp_ms;
+    int64_t monotonic_ms;
     int initialized;
 } collector_state_t;
 

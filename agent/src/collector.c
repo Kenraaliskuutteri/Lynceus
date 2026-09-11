@@ -7,7 +7,13 @@
 #include <inttypes.h>
 #include <sys/statvfs.h>
 
-static int64_t now_ms(void) {
+static int64_t now_monotonic_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static int64_t now_realtime_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
@@ -118,16 +124,16 @@ void collector_init(collector_state_t *state) {
     state->idle = idle;
     state->rx_bytes = rx;
     state->tx_bytes = tx;
-    state->timestamp_ms = now_ms();
+    state->monotonic_ms = now_monotonic_ms();
     state->initialized = 1;
 }
 
 int collector_sample(collector_state_t *state, system_metrics_t *out) {
     if (!state->initialized) return -1;
 
-    int64_t ts = now_ms();
-    double elapsed_sec = (double)(ts - state->timestamp_ms) / 1000.0;
-    if (elapsed_sec <= 0) elapsed_sec = 1.0;
+    int64_t mono_now = now_monotonic_ms();
+    double elapsed_sec = (double)(mono_now - state->monotonic_ms) / 1000.0;
+    if (elapsed_sec <= 0.0001) elapsed_sec = 1.0;
 
     uint64_t total = 0, idle = 0;
     double cpu_usage = 0.0;
@@ -154,7 +160,7 @@ int collector_sample(collector_state_t *state, system_metrics_t *out) {
         tx_kb = ((double)tx_delta / 1024.0) / elapsed_sec;
     }
 
-    out->timestamp_ms = ts;
+    out->timestamp_ms = now_realtime_ms();
     out->cpu_usage = cpu_usage;
     out->ram_usage = ram_usage;
     out->disk_usage = disk_usage;
@@ -165,7 +171,7 @@ int collector_sample(collector_state_t *state, system_metrics_t *out) {
     state->idle = idle;
     state->rx_bytes = rx;
     state->tx_bytes = tx;
-    state->timestamp_ms = ts;
+    state->monotonic_ms = mono_now;
 
     return 0;
 }

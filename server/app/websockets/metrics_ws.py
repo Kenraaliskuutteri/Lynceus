@@ -45,9 +45,18 @@ def persist_metric(db: Session, server_id: str, payload: dict):
     else:
         server.last_seen = now
 
+    raw_ts = payload.get("timestamp")
+    if raw_ts and isinstance(raw_ts, (int, float)) and raw_ts > 0:
+        try:
+            metric_time = datetime.fromtimestamp(raw_ts / 1000.0, tz=timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            metric_time = now
+    else:
+        metric_time = now
+
     log = MetricLog(
         server_id=server_id,
-        timestamp=now,
+        timestamp=metric_time,
         cpu_usage=payload.get("cpuUsage", 0.0),
         ram_usage=payload.get("ramUsage", 0.0),
         disk_usage=payload.get("diskUsage", 0.0),
@@ -56,7 +65,7 @@ def persist_metric(db: Session, server_id: str, payload: dict):
     )
     db.add(log)
     db.commit()
-    evaluate_alerts(db, server_id, payload, now)
+    evaluate_alerts(db, server_id, payload, metric_time)
 
 
 @router.websocket("/ws/metrics/{server_id}")
