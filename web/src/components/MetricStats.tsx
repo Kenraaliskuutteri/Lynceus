@@ -23,6 +23,7 @@ export const MetricStats: React.FC<Props> = ({ data }) => {
   const rows: { label: string; unit: string; stat: Stat }[] = [
     { label: 'CPU', unit: '%', stat: computeStats(data.map((m) => m.cpuUsage)) },
     { label: 'RAM', unit: '%', stat: computeStats(data.map((m) => m.ramUsage)) },
+    { label: 'Disk', unit: '%', stat: computeStats(data.map((m) => m.diskUsage)) },
     { label: 'Net RX', unit: 'kb/s', stat: computeStats(data.map((m) => m.networkRxKb)) },
     { label: 'Net TX', unit: 'kb/s', stat: computeStats(data.map((m) => m.networkTxKb)) },
   ];

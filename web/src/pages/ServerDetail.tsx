@@ -3,6 +3,7 @@ import { ServerNode } from '../types/telemetry';
 import { useMetrics } from '../hooks/useMetrics';
 import { CpuChart } from '../components/charts/CpuChart';
 import { MemoryChart } from '../components/charts/MemoryChart';
+import { DiskChart } from '../components/charts/DiskChart';
 import { NetworkChart } from '../components/charts/NetworkChart';
 import { AlertBanner } from '../components/AlertBanner';
 import { MetricStats } from '../components/MetricStats';
@@ -47,6 +48,7 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
           <div style={{ display: 'grid', gap: '20px' }}>
             <CpuChart data={history} />
             <MemoryChart data={history} />
+            <DiskChart data={history} />
             <NetworkChart data={history} />
           </div>
         </>
