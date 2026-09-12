@@ -9,3 +9,6 @@ ALERT_THRESHOLDS = {
     "ram_usage": float(os.environ.get("LYNCEUS_RAM_THRESHOLD", "90")),
     "disk_usage": float(os.environ.get("LYNCEUS_DISK_THRESHOLD", "90")),
 }
+
+WEBHOOK_URL = os.environ.get("LYNCEUS_WEBHOOK_URL", "").strip()
+WEBHOOK_FORMAT = os.environ.get("LYNCEUS_WEBHOOK_FORMAT", "auto").strip().lower()

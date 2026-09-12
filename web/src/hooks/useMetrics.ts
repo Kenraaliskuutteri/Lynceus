@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWebSocket } from './useWebSocket';
-import { SystemMetrics } from '../types/telemetry';
-import { fetchHistory } from '../services/api';
+import { SystemMetrics, AlertEvent } from '../types/telemetry';
+import { fetchHistory, fetchAlerts } from '../services/api';
 
 const LIVE_BUFFER_LIMIT = 500;
 
 export function useMetrics(serverId: string | null, rangeMinutes: number = 60) {
   const [history, setHistory] = useState<SystemMetrics[]>([]);
+  const [activeAlerts, setActiveAlerts] = useState<AlertEvent[]>([]);
 
   const wsUrl = useMemo(() => {
     if (!serverId) return null;
@@ -21,6 +22,7 @@ export function useMetrics(serverId: string | null, rangeMinutes: number = 60) {
 
   useEffect(() => {
     setHistory([]);
+    setActiveAlerts([]);
     if (!serverId) return;
 
     let cancelled = false;
@@ -29,9 +31,13 @@ export function useMetrics(serverId: string | null, rangeMinutes: number = 60) {
       .then((rows) => {
         if (!cancelled) setHistory(rows.slice(-LIVE_BUFFER_LIMIT));
       })
-      .catch(() => {
-        return;
-      });
+      .catch(() => {});
+
+    fetchAlerts(serverId, 'triggered')
+      .then((alerts) => {
+        if (!cancelled) setActiveAlerts(alerts);
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -41,12 +47,31 @@ export function useMetrics(serverId: string | null, rangeMinutes: number = 60) {
   useEffect(() => {
     if (!lastMessage) return;
     try {
-      const metric: SystemMetrics = JSON.parse(lastMessage.data);
-      setHistory((prev) => [...prev.slice(-(LIVE_BUFFER_LIMIT - 1)), metric]);
+      const parsed = JSON.parse(lastMessage.data);
+      if (parsed.type === 'alert' && parsed.event) {
+        const event: AlertEvent = parsed.event;
+        setActiveAlerts((prev) => {
+          if (event.status === 'triggered') {
+            const filtered = prev.filter((a) => a.metric !== event.metric);
+            return [...filtered, event];
+          } else if (event.status === 'resolved') {
+            return prev.filter((a) => a.metric !== event.metric);
+          }
+          return prev;
+        });
+      } else if (typeof parsed.cpuUsage === 'number') {
+        const metric: SystemMetrics = parsed;
+        setHistory((prev) => [...prev.slice(-(LIVE_BUFFER_LIMIT - 1)), metric]);
+      }
     } catch {
       return;
     }
   }, [lastMessage]);
 
-  return { history, status, latest: history[history.length - 1] ?? null };
+  return {
+    history,
+    status,
+    latest: history[history.length - 1] ?? null,
+    activeAlerts,
+  };
 }

@@ -1,13 +1,17 @@
+import asyncio
 import json
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.alerts import evaluate_alerts
+from app.core.webhooks import dispatch_alert_webhook
 from app.models.server import Server
 from app.models.metric_log import MetricLog
+from app.models.alert import AlertEvent
 
 router = APIRouter()
 
@@ -26,16 +30,20 @@ class ConnectionManager:
         if peers is not None and not peers:
             self.rooms.pop(server_id, None)
 
-    async def broadcast(self, server_id: str, sender: WebSocket, message: str):
-        for peer in self.rooms.get(server_id, set()):
+    async def broadcast(self, server_id: str, sender: Optional[WebSocket], message: str):
+        peers = list(self.rooms.get(server_id, set()))
+        for peer in peers:
             if peer is not sender:
-                await peer.send_text(message)
+                try:
+                    await peer.send_text(message)
+                except Exception:
+                    pass
 
 
 manager = ConnectionManager()
 
 
-def persist_metric(db: Session, server_id: str, payload: dict):
+def persist_metric(db: Session, server_id: str, payload: dict) -> list[AlertEvent]:
     now = datetime.now(timezone.utc)
 
     server = db.get(Server, server_id)
@@ -65,7 +73,7 @@ def persist_metric(db: Session, server_id: str, payload: dict):
     )
     db.add(log)
     db.commit()
-    evaluate_alerts(db, server_id, payload, metric_time)
+    return evaluate_alerts(db, server_id, payload, metric_time)
 
 
 @router.websocket("/ws/metrics/{server_id}")
@@ -84,11 +92,32 @@ async def metrics_socket(websocket: WebSocket, server_id: str, key: str = Query(
 
             db = SessionLocal()
             try:
-                persist_metric(db, server_id, payload)
+                changed_alerts = persist_metric(db, server_id, payload)
             finally:
                 db.close()
 
             await manager.broadcast(server_id, websocket, raw)
+
+            for alert in changed_alerts:
+                asyncio.create_task(dispatch_alert_webhook(alert))
+                alert_frame = json.dumps({
+                    "type": "alert",
+                    "event": {
+                        "id": alert.id,
+                        "serverId": alert.server_id,
+                        "metric": alert.metric,
+                        "value": alert.value,
+                        "threshold": alert.threshold,
+                        "status": alert.status,
+                        "triggeredAt": alert.triggered_at.replace(tzinfo=timezone.utc).isoformat()
+                        if alert.triggered_at
+                        else None,
+                        "resolvedAt": alert.resolved_at.replace(tzinfo=timezone.utc).isoformat()
+                        if alert.resolved_at
+                        else None,
+                    },
+                })
+                await manager.broadcast(server_id, None, alert_frame)
     except WebSocketDisconnect:
         pass
     finally:

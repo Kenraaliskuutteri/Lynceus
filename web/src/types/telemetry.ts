@@ -26,3 +26,16 @@ export interface AlertEvent {
   triggeredAt: string;
   resolvedAt: string | null;
 }
+
+export interface AlertConfig {
+  thresholds: Record<string, number>;
+  webhook_configured: boolean;
+  webhook_format: string;
+}
+
+export interface WebhookTestResult {
+  success: boolean;
+  message: string;
+  target_format: string;
+  configured: boolean;
+}

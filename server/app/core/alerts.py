@@ -13,8 +13,11 @@ METRIC_FIELDS = {
 }
 
 
-def evaluate_alerts(db: Session, server_id: str, payload: dict, now: Optional[datetime] = None):
+def evaluate_alerts(
+    db: Session, server_id: str, payload: dict, now: Optional[datetime] = None
+) -> list[AlertEvent]:
     now = now or datetime.now(timezone.utc)
+    changed_alerts: list[AlertEvent] = []
 
     for field_name, alias in METRIC_FIELDS.items():
         value = payload.get(alias)
@@ -34,18 +37,24 @@ def evaluate_alerts(db: Session, server_id: str, payload: dict, now: Optional[da
         )
 
         if value >= threshold and open_alert is None:
-            db.add(
-                AlertEvent(
-                    server_id=server_id,
-                    metric=field_name,
-                    value=value,
-                    threshold=threshold,
-                    status="triggered",
-                    triggered_at=now,
-                )
+            alert = AlertEvent(
+                server_id=server_id,
+                metric=field_name,
+                value=value,
+                threshold=threshold,
+                status="triggered",
+                triggered_at=now,
             )
+            db.add(alert)
+            changed_alerts.append(alert)
         elif value < threshold and open_alert is not None:
             open_alert.status = "resolved"
             open_alert.resolved_at = now
+            changed_alerts.append(open_alert)
 
-    db.commit()
+    if changed_alerts:
+        db.commit()
+        for alert in changed_alerts:
+            db.refresh(alert)
+
+    return changed_alerts

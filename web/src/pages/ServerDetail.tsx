@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { ServerNode } from '../types/telemetry';
 import { useMetrics } from '../hooks/useMetrics';
-import { useThresholdAlerts } from '../hooks/useThresholdAlerts';
-import { DEFAULT_THRESHOLDS } from '../utils/thresholds';
 import { CpuChart } from '../components/charts/CpuChart';
 import { MemoryChart } from '../components/charts/MemoryChart';
 import { NetworkChart } from '../components/charts/NetworkChart';
@@ -17,9 +15,7 @@ interface Props {
 
 export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
   const [rangeMinutes, setRangeMinutes] = useState(60);
-  const { history, status } = useMetrics(node.id, rangeMinutes);
-  const latest = history[history.length - 1] ?? null;
-  const activeAlerts = useThresholdAlerts(node.hostname, latest, DEFAULT_THRESHOLDS);
+  const { history, status, activeAlerts } = useMetrics(node.id, rangeMinutes);
 
   return (
     <div className="content-page" style={{ padding: 0 }}>
