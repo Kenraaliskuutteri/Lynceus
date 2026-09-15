@@ -6,10 +6,11 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.models.alert import AlertEvent
 from app.schemas.alert import AlertEventOut
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 
 @router.get("/alerts", response_model=list[AlertEventOut], response_model_by_alias=True)

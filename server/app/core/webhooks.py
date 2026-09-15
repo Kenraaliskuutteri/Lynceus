@@ -35,6 +35,7 @@ def _build_payload(
     label = METRIC_LABELS.get(event.metric, event.metric)
     is_triggered = event.status == "triggered"
     status_label = "TRIGGERED" if is_triggered else "RESOLVED"
+    emoji = "\U0001F6A8" if is_triggered else "\u2705"
 
     triggered_iso = (
         event.triggered_at.replace(tzinfo=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")

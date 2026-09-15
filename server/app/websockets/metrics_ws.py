@@ -7,6 +7,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.security import verify_ws_key
 from app.core.alerts import evaluate_alerts
 from app.core.webhooks import dispatch_alert_webhook
 from app.models.server import Server
@@ -79,6 +80,11 @@ def persist_metric(db: Session, server_id: str, payload: dict) -> list[AlertEven
 @router.websocket("/ws/metrics/{server_id}")
 async def metrics_socket(websocket: WebSocket, server_id: str, key: str = Query(default="")):
     await websocket.accept()
+
+    if not verify_ws_key(key):
+        await websocket.close(code=1008)
+        return
+
     await manager.join(server_id, websocket)
 
     try:

@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.config import OFFLINE_THRESHOLD_SECONDS
 from app.core.database import get_db
+from app.core.security import verify_api_key
 from app.models.server import Server
 from app.models.metric_log import MetricLog
 from app.schemas.telemetry import ServerNode, SystemMetrics
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 
 @router.get("/servers", response_model=list[ServerNode], response_model_by_alias=True)
