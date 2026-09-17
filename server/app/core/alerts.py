@@ -5,12 +5,30 @@ from sqlalchemy.orm import Session
 
 from app.config import ALERT_THRESHOLDS
 from app.models.alert import AlertEvent
+from app.models.server import Server
 
 METRIC_FIELDS = {
-    "cpu_usage": "cpuUsage",
-    "ram_usage": "ramUsage",
-    "disk_usage": "diskUsage",
+    "cpu_usage": ("cpuUsage", "cpu_threshold"),
+    "ram_usage": ("ramUsage", "ram_threshold"),
+    "disk_usage": ("diskUsage", "disk_threshold"),
 }
+
+
+def serialize_alert(alert: AlertEvent) -> dict:
+    return {
+        "id": alert.id,
+        "serverId": alert.server_id,
+        "metric": alert.metric,
+        "value": alert.value,
+        "threshold": alert.threshold,
+        "status": alert.status,
+        "triggeredAt": alert.triggered_at.replace(tzinfo=timezone.utc).isoformat()
+        if alert.triggered_at
+        else None,
+        "resolvedAt": alert.resolved_at.replace(tzinfo=timezone.utc).isoformat()
+        if alert.resolved_at
+        else None,
+    }
 
 
 def evaluate_alerts(
@@ -19,12 +37,15 @@ def evaluate_alerts(
     now = now or datetime.now(timezone.utc)
     changed_alerts: list[AlertEvent] = []
 
-    for field_name, alias in METRIC_FIELDS.items():
+    server = db.get(Server, server_id)
+
+    for field_name, (alias, override_attr) in METRIC_FIELDS.items():
         value = payload.get(alias)
         if value is None:
             continue
 
-        threshold = ALERT_THRESHOLDS[field_name]
+        override = getattr(server, override_attr, None) if server else None
+        threshold = override if override is not None else ALERT_THRESHOLDS[field_name]
 
         open_alert = (
             db.query(AlertEvent)

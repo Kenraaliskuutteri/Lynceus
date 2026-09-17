@@ -1,3 +1,4 @@
+# I love how i named this folder. I'm something of a practical joker my self.
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -15,6 +16,25 @@ class SystemMetrics(BaseModel):
     network_tx_kb: float = Field(alias="networkTxKb")
 
 
+class ServerThresholds(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    cpu_usage: float = Field(alias="cpuUsage")
+    ram_usage: float = Field(alias="ramUsage")
+    disk_usage: float = Field(alias="diskUsage")
+    offline_seconds: int = Field(alias="offlineSeconds")
+
+
+class ServerThresholdsUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    cpu_usage: Optional[float] = Field(default=None, alias="cpuUsage")
+    ram_usage: Optional[float] = Field(default=None, alias="ramUsage")
+    disk_usage: Optional[float] = Field(default=None, alias="diskUsage")
+    offline_seconds: Optional[int] = Field(default=None, alias="offlineSeconds")
+    clear: list[str] = Field(default_factory=list)
+
+
 class ServerNode(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -24,6 +44,7 @@ class ServerNode(BaseModel):
     status: str
     last_seen: Optional[str] = Field(default=None, alias="lastSeen")
     metrics: Optional[SystemMetrics] = None
+    thresholds: ServerThresholds
 
 
 def utc_now() -> datetime:
