@@ -49,14 +49,35 @@ The architecture consists of a lightweight C daemon running directly on monitore
 
 ## Getting Started
 
-### Prerequisites
+## Dependencies
 
-* Docker and Docker Compose
-* GCC / Clang (if building the C agent manually outside Docker)
+### Agent (C)
+* C11-compatible compiler (gcc or clang)
+* CMake ≥ 3.10
+* pkg-config
+* libwebsockets (dev headers — `libwebsockets-dev` on Debian/Ubuntu)
 
-### Quickstart
+### Backend (Python 3.11+)
+* fastapi
+* uvicorn[standard]
+* sqlalchemy
+* psycopg2-binary *(only if running against PostgreSQL instead of the default SQLite)*
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Kenraaliskuutteri/Lynceus.git
-   cd Lynceus
+Install with:
+
+cd server
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+
+### Frontend (Web / Tauri)
+* Node.js ≥ 18 and npm
+* Rust toolchain (via [rustup](https://rustup.rs))
+* Tauri system dependencies: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `libsoup-3.0-dev`, `patchelf` (Debian/Ubuntu/PikaOS)
+
+Install with:
+
+cd web
+npm install
+npm run build # web build only
+npx tauri build # native app bundle
