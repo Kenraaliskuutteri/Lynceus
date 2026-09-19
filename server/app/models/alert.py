@@ -14,3 +14,4 @@ class AlertEvent(Base):
     status = Column(String, nullable=False, default="triggered")
     triggered_at = Column(DateTime, nullable=False)
     resolved_at = Column(DateTime, nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)

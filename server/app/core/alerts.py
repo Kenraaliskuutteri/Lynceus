@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import ACK_EXPIRY_HOURS, ALERT_THRESHOLDS
+from app.config import ACK_EXPIRY_HOURS, ALERT_HYSTERESIS_PERCENT, ALERT_THRESHOLDS
 from app.models.alert import AlertEvent
 from app.models.server import Server
 
@@ -71,10 +71,12 @@ def evaluate_alerts(
             )
             db.add(alert)
             changed_alerts.append(alert)
-        elif value < threshold and open_alert is not None:
-            open_alert.status = "resolved"
-            open_alert.resolved_at = now
-            changed_alerts.append(open_alert)
+        elif open_alert is not None:
+            resolve_below = threshold - (threshold * ALERT_HYSTERESIS_PERCENT / 100)
+            if value < resolve_below:
+                open_alert.status = "resolved"
+                open_alert.resolved_at = now
+                changed_alerts.append(open_alert)
 
     if changed_alerts:
         db.commit()

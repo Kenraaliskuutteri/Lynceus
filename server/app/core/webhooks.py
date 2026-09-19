@@ -15,6 +15,7 @@ METRIC_LABELS = {
     "cpu_usage": "CPU",
     "ram_usage": "RAM",
     "disk_usage": "Disk",
+    "offline": "Connectivity",
 }
 
 
@@ -50,19 +51,31 @@ def _build_payload(
 
     if target_format == "discord":
         color = 0xEF4444 if is_triggered else 0x10B981
-        title = (
-            f"{emoji} Alert Triggered: High {label} on {event.server_id}"
-            if is_triggered
-            else f"{emoji} Alert Resolved: {label} normalized on {event.server_id}"
+        if event.metric == "offline":
+            title = (
+                f"{emoji} Server Offline: {event.server_id}"
+                if is_triggered
+                else f"{emoji} Server Back Online: {event.server_id}"
+            )
+        else:
+            title = (
+                f"{emoji} Alert Triggered: High {label} on {event.server_id}"
+                if is_triggered
+                else f"{emoji} Alert Resolved: {label} normalized on {event.server_id}"
+            )
+        value_field = (
+            {"name": "Offline For", "value": f"{event.value:.0f}s (limit {event.threshold:.0f}s)", "inline": True}
+            if event.metric == "offline"
+            else {
+                "name": "Value / Limit",
+                "value": f"{event.value:.1f}% / {event.threshold:.1f}%",
+                "inline": True,
+            }
         )
         fields = [
             {"name": "Server", "value": f"`{event.server_id}`", "inline": True},
             {"name": "Metric", "value": label, "inline": True},
-            {
-                "name": "Value / Limit",
-                "value": f"{event.value:.1f}% / {event.threshold:.1f}%",
-                "inline": True,
-            },
+            value_field,
             {"name": "Triggered At", "value": triggered_iso, "inline": True},
         ]
         if not is_triggered and event.resolved_at:
@@ -83,12 +96,21 @@ def _build_payload(
 
     elif target_format == "slack":
         color = "#EF4444" if is_triggered else "#10B981"
-        header = f"{emoji} *[ALERT {status_label}]* {label} on `{event.server_id}`: {event.value:.1f}% (threshold {event.threshold:.1f}%)"
+        if event.metric == "offline":
+            header = (
+                f"{emoji} *Server Offline*: `{event.server_id}` unreachable for over {event.threshold:.0f}s"
+                if is_triggered
+                else f"{emoji} *Server Back Online*: `{event.server_id}`"
+            )
+        else:
+            header = f"{emoji} *[ALERT {status_label}]* {label} on `{event.server_id}`: {event.value:.1f}% (threshold {event.threshold:.1f}%)"
+        value_str = f"{event.value:.0f}s" if event.metric == "offline" else f"{event.value:.1f}%"
+        threshold_str = f"{event.threshold:.0f}s" if event.metric == "offline" else f"{event.threshold:.1f}%"
         fields = [
             {"title": "Server", "value": event.server_id, "short": True},
             {"title": "Metric", "value": label, "short": True},
-            {"title": "Value", "value": f"{event.value:.1f}%", "short": True},
-            {"title": "Threshold", "value": f"{event.threshold:.1f}%", "short": True},
+            {"title": "Value", "value": value_str, "short": True},
+            {"title": "Threshold", "value": threshold_str, "short": True},
             {"title": "Triggered At", "value": triggered_iso, "short": True},
         ]
         if not is_triggered and event.resolved_at:

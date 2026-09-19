@@ -14,3 +14,4 @@ class AlertEventOut(BaseModel):
     status: str
     triggered_at: str = Field(alias="triggeredAt")
     resolved_at: Optional[str] = Field(default=None, alias="resolvedAt")
+    acknowledged_at: Optional[str] = Field(default=None, alias="acknowledgedAt")

@@ -1,8 +1,11 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
 from app.core.database import init_db
+from app.core.offline_monitor import run_offline_monitor
 from app.api.v1 import servers as servers_api
 from app.api.v1 import alerts as alerts_api
 from app.websockets import metrics_ws
@@ -19,8 +22,9 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     init_db()
+    asyncio.create_task(run_offline_monitor())
 
 
 app.include_router(servers_api.router, prefix="/api/v1")
