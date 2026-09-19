@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.config import OFFLINE_THRESHOLD_SECONDS
-from app.core.alerts import serialize_alert
+from app.core.alerts import expire_acknowledgments, serialize_alert
 from app.core.database import SessionLocal
 from app.core.webhooks import dispatch_alert_webhook
 from app.models.alert import AlertEvent
@@ -68,7 +68,9 @@ async def run_offline_monitor():
     while True:
         db = SessionLocal()
         try:
-            changed = check_offline_servers(db, datetime.now(timezone.utc))
+            now = datetime.now(timezone.utc)
+            changed = check_offline_servers(db, now)
+            changed += expire_acknowledgments(db, now)
         finally:
             db.close()
 

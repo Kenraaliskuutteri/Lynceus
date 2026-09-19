@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import ALERT_THRESHOLDS
+from app.config import ACK_EXPIRY_HOURS, ALERT_THRESHOLDS
 from app.models.alert import AlertEvent
 from app.models.server import Server
 
@@ -27,6 +27,9 @@ def serialize_alert(alert: AlertEvent) -> dict:
         else None,
         "resolvedAt": alert.resolved_at.replace(tzinfo=timezone.utc).isoformat()
         if alert.resolved_at
+        else None,
+        "acknowledgedAt": alert.acknowledged_at.replace(tzinfo=timezone.utc).isoformat()
+        if alert.acknowledged_at
         else None,
     }
 
@@ -79,3 +82,30 @@ def evaluate_alerts(
             db.refresh(alert)
 
     return changed_alerts
+
+
+def expire_acknowledgments(db: Session, now: datetime) -> list[AlertEvent]:
+    if ACK_EXPIRY_HOURS <= 0:
+        return []
+
+    cutoff = now - timedelta(hours=ACK_EXPIRY_HOURS)
+
+    expired = (
+        db.query(AlertEvent)
+        .filter(
+            AlertEvent.status == "triggered",
+            AlertEvent.acknowledged_at.isnot(None),
+            AlertEvent.acknowledged_at < cutoff,
+        )
+        .all()
+    )
+
+    for alert in expired:
+        alert.acknowledged_at = None
+
+    if expired:
+        db.commit()
+        for alert in expired:
+            db.refresh(alert)
+
+    return expired
