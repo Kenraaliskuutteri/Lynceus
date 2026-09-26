@@ -6,6 +6,7 @@ import { MemoryChart } from '../components/charts/MemoryChart';
 import { DiskChart } from '../components/charts/DiskChart';
 import { NetworkChart } from '../components/charts/NetworkChart';
 import { AlertBanner } from '../components/AlertBanner';
+import { UptimeStat } from '../components/UptimeStat';
 import { MetricStats } from '../components/MetricStats';
 import { RangeSelector } from '../components/RangeSelector';
 
@@ -31,6 +32,7 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
         <span className="panel-kicker">{status === 'open' ? 'STREAMING' : status.toUpperCase()}</span>
       </div>
 
+      <UptimeStat serverId={node.id} />
       <AlertBanner alerts={activeAlerts} />
       <RangeSelector value={rangeMinutes} onChange={setRangeMinutes} />
 

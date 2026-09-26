@@ -47,5 +47,14 @@ class ServerNode(BaseModel):
     thresholds: ServerThresholds
 
 
+class ServerUptime(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    uptime_percent: float = Field(alias="uptimePercent")
+    downtime_seconds: float = Field(alias="downtimeSeconds")
+    incident_count: int = Field(alias="incidentCount")
+    window_days: int = Field(alias="windowDays")
+
+
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)

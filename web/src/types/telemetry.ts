@@ -25,6 +25,7 @@ export interface AlertEvent {
   status: 'triggered' | 'resolved';
   triggeredAt: string;
   resolvedAt: string | null;
+  acknowledgedAt: string | null;
 }
 
 export interface AlertConfig {
@@ -38,4 +39,11 @@ export interface WebhookTestResult {
   message: string;
   target_format: string;
   configured: boolean;
+}
+
+export interface ServerUptime {
+  uptimePercent: number;
+  downtimeSeconds: number;
+  incidentCount: number;
+  windowDays: number;
 }
