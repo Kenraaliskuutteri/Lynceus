@@ -1,21 +1,15 @@
 import React, { useState } from 'react';
-import { normalizeHost } from '../../utils/host';
-import { isValidHeaderValue } from '../../utils/validation';
+import { useAuth } from '../../context/AuthContext';
 
-interface AuthFormProps {
-  onConnect: (host: string, key: string) => void;
-}
+export const AuthForm: React.FC = () => {
+  const { login, host: storedHost } = useAuth();
+  const [hostAddress, setHostAddress] = useState<string>(storedHost);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-export const AuthForm: React.FC<AuthFormProps> = ({ onConnect }) => {
-  const [hostAddress, setHostAddress] = useState<string>(
-    localStorage.getItem('lynceus_host') || ''
-  );
-  const [secretKey, setSecretKey] = useState<string>(
-    localStorage.getItem('lynceus_key') || ''
-  );
-  const [errorMessage, setErrorMessage] = useState<string>('');
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -23,27 +17,19 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onConnect }) => {
       setErrorMessage('Endpoint URL required.');
       return;
     }
-
-    if (!secretKey.trim()) {
-      setErrorMessage('Master API Key required.');
+    if (!username.trim() || !password) {
+      setErrorMessage('Username and password required.');
       return;
     }
 
-    const trimmedKey = secretKey.trim();
-    if (!isValidHeaderValue(trimmedKey)) {
-      setErrorMessage('Master API Key contains invalid characters (check for smart quotes or line breaks from copy-paste).');
-      return;
-    }
-
-    let normalized: string;
+    setIsSubmitting(true);
     try {
-      normalized = normalizeHost(hostAddress);
+      await login(hostAddress, username.trim(), password);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Invalid host endpoint.');
-      return;
+      setErrorMessage(err instanceof Error ? err.message : 'Login failed.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onConnect(normalized, trimmedKey);
   };
 
   return (
@@ -51,9 +37,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onConnect }) => {
       <div className="panel">
         <div className="panel-header">
           <span className="panel-kicker">Authentication Required</span>
-          <h2>Connect Instance</h2>
+          <h2>Sign In</h2>
         </div>
-        <p>Specify daemon endpoint and secret key to establish session.</p>
+        <p>Specify daemon endpoint and account credentials to establish session.</p>
 
         {errorMessage && <div className="error-alert">{errorMessage}</div>}
 
@@ -69,17 +55,28 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onConnect }) => {
           </div>
 
           <div className="form-group">
-            <label>Master API Key</label>
+            <label>Username</label>
             <input
-              type="password"
-              placeholder="••••••••••••••••"
-              value={secretKey}
-              onChange={(e) => setSecretKey(e.target.value)}
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </div>
 
-          <button type="submit" className="download-button" style={{ marginTop: '12px' }}>
-            Connect Panel
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="••••••••••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button type="submit" className="download-button" style={{ marginTop: '12px' }} disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </div>

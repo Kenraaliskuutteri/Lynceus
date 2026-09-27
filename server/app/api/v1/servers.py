@@ -6,12 +6,19 @@ from sqlalchemy.orm import Session
 
 from app.config import ALERT_THRESHOLDS, OFFLINE_THRESHOLD_SECONDS
 from app.core.database import get_db
-from app.core.security import verify_api_key
+from app.core.security import require_admin, require_user
+from app.models.alert import AlertEvent
 from app.models.server import Server
 from app.models.metric_log import MetricLog
-from app.schemas.telemetry import ServerNode, SystemMetrics, ServerThresholds, ServerThresholdsUpdate
+from app.schemas.telemetry import (
+    ServerNode,
+    SystemMetrics,
+    ServerThresholds,
+    ServerThresholdsUpdate,
+    ServerUptime,
+)
 
-router = APIRouter(dependencies=[Depends(verify_api_key)])
+router = APIRouter(dependencies=[Depends(require_user)])
 
 
 def effective_thresholds(server: Server) -> ServerThresholds:
@@ -73,7 +80,9 @@ def list_servers(db: Session = Depends(get_db)):
 
 
 @router.patch("/servers/{server_id}/thresholds", response_model=ServerThresholds, response_model_by_alias=True)
-def update_thresholds(server_id: str, body: ServerThresholdsUpdate, db: Session = Depends(get_db)):
+def update_thresholds(
+    server_id: str, body: ServerThresholdsUpdate, db: Session = Depends(get_db), _: dict = Depends(require_admin)
+):
     server = db.get(Server, server_id)
     if server is None:
         raise HTTPException(status_code=404, detail="server not found")
@@ -102,6 +111,39 @@ def update_thresholds(server_id: str, body: ServerThresholdsUpdate, db: Session 
     db.refresh(server)
 
     return effective_thresholds(server)
+
+
+@router.get("/servers/{server_id}/uptime", response_model=ServerUptime, response_model_by_alias=True)
+def get_uptime(server_id: str, days: int = 30, db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(days=days)
+
+    incidents = (
+        db.query(AlertEvent)
+        .filter(AlertEvent.server_id == server_id, AlertEvent.metric == "offline")
+        .filter((AlertEvent.resolved_at.is_(None)) | (AlertEvent.resolved_at > window_start))
+        .filter(AlertEvent.triggered_at < now)
+        .all()
+    )
+
+    downtime_seconds = 0.0
+    for incident in incidents:
+        start = incident.triggered_at.replace(tzinfo=timezone.utc)
+        end = incident.resolved_at.replace(tzinfo=timezone.utc) if incident.resolved_at else now
+        start = max(start, window_start)
+        downtime_seconds += max((end - start).total_seconds(), 0)
+
+    window_seconds = (now - window_start).total_seconds()
+    uptime_percent = 100.0
+    if window_seconds > 0:
+        uptime_percent = max(0.0, min(100.0, 100 * (1 - downtime_seconds / window_seconds)))
+
+    return ServerUptime(
+        uptimePercent=round(uptime_percent, 2),
+        downtimeSeconds=round(downtime_seconds, 0),
+        incidentCount=len(incidents),
+        windowDays=days,
+    )
 
 
 TARGET_POINTS = 200

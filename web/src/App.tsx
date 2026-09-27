@@ -1,44 +1,30 @@
 import React, { useState } from 'react';
 import './App.css';
-import { AuthForm } from "./components/ui/AuthForm";
+import { AuthForm } from './components/ui/AuthForm';
 import Dashboard from './pages/Dashboard';
 import AlertsPage from './pages/AlertsPage';
-import { normalizeHost } from './utils/host';
-
-function loadStoredHost(): string | null {
-  const raw = localStorage.getItem('lynceus_host');
-  if (!raw) return null;
-  try {
-    return normalizeHost(raw);
-  } catch {
-    localStorage.removeItem('lynceus_host');
-    localStorage.removeItem('lynceus_key');
-    return null;
-  }
-}
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 type View = 'dashboard' | 'alerts';
 
-export const App: React.FC = () => {
-  const [storedHost] = useState<string | null>(loadStoredHost());
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
-    Boolean(storedHost && localStorage.getItem('lynceus_key'))
-  );
-  const [hostAddress, setHostAddress] = useState<string>(storedHost || '');
+const AppShell: React.FC = () => {
+  const { isAuthenticated, isLoading, host, username, role, logout } = useAuth();
   const [view, setView] = useState<View>('dashboard');
 
-  const handleConnect = (host: string, key: string) => {
-    localStorage.setItem('lynceus_host', host);
-    localStorage.setItem('lynceus_key', key);
-    setHostAddress(host);
-    setIsAuthenticated(true);
-  };
-
-  const handleDisconnect = () => {
-    localStorage.removeItem('lynceus_host');
-    localStorage.removeItem('lynceus_key');
-    setIsAuthenticated(false);
-  };
+  if (isLoading) {
+    return (
+      <div>
+        <header className="site-header">
+          <div className="brand-row">
+            <div className="title-stack">
+              <h1 className="site-title">LYNCEUS</h1>
+              <p className="subtitle">Server Monitoring Dashboard</p>
+            </div>
+          </div>
+        </header>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -47,14 +33,14 @@ export const App: React.FC = () => {
           <div className="title-stack">
             <h1 className="site-title">LYNCEUS</h1>
             <p className="subtitle">
-              {isAuthenticated ? `Connected to ${hostAddress}` : 'Server Monitoring Dashboard'}
+              {isAuthenticated ? `Connected to ${host} as ${username} (${role})` : 'Server Monitoring Dashboard'}
             </p>
           </div>
         </div>
       </header>
 
       {!isAuthenticated ? (
-        <AuthForm onConnect={handleConnect} />
+        <AuthForm />
       ) : (
         <>
           <div className="sub-nav">
@@ -75,8 +61,8 @@ export const App: React.FC = () => {
                   Alerts
                 </button>
               </div>
-              <button className="secondary-button" onClick={handleDisconnect}>
-                Disconnect
+              <button className="secondary-button" onClick={logout}>
+                Sign Out
               </button>
             </div>
           </div>
@@ -93,5 +79,11 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export const App: React.FC = () => (
+  <AuthProvider>
+    <AppShell />
+  </AuthProvider>
+);
 
 export default App;

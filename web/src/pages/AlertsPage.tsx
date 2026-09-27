@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertEvent, AlertConfig } from '../types/telemetry';
 import { fetchAlerts, fetchAlertConfig, triggerWebhookTest } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const METRIC_LABELS: Record<string, string> = {
   cpu_usage: 'CPU',
@@ -11,6 +12,7 @@ const METRIC_LABELS: Record<string, string> = {
 type FilterStatus = 'all' | 'triggered' | 'resolved';
 
 export const AlertsPage: React.FC = () => {
+  const { role } = useAuth();
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [config, setConfig] = useState<AlertConfig | null>(null);
   const [filter, setFilter] = useState<FilterStatus>('all');
@@ -87,7 +89,7 @@ export const AlertsPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {config?.webhook_configured && (
+          {config?.webhook_configured && role === 'admin' && (
             <button
               className="secondary-button"
               onClick={handleTestWebhook}

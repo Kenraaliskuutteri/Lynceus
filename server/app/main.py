@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
-from app.core.database import init_db
+from app.core.auth import seed_admin_user
+from app.core.database import SessionLocal, init_db
 from app.core.offline_monitor import run_offline_monitor
 from app.core.security import validate_startup_config
+from app.api.v1 import auth as auth_api
 from app.api.v1 import servers as servers_api
 from app.api.v1 import alerts as alerts_api
 from app.websockets import metrics_ws
@@ -27,9 +29,17 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_startup():
     init_db()
+
+    db = SessionLocal()
+    try:
+        seed_admin_user(db)
+    finally:
+        db.close()
+
     asyncio.create_task(run_offline_monitor())
 
 
+app.include_router(auth_api.router, prefix="/api/v1")
 app.include_router(servers_api.router, prefix="/api/v1")
 app.include_router(alerts_api.router, prefix="/api/v1")
 app.include_router(metrics_ws.router, prefix="/api/v1")
