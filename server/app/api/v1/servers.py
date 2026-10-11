@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.config import ALERT_THRESHOLDS, OFFLINE_THRESHOLD_SECONDS
+from app.config import ALERT_THRESHOLDS, OFFLINE_THRESHOLD_SECONDS, RETENTION_DAYS, ROLLUP_BUCKET_SECONDS
 from app.core.database import get_db
+from app.core.retention import as_utc
 from app.core.security import require_admin, require_user
 from app.models.alert import AlertEvent
 from app.models.server import Server
 from app.models.metric_log import MetricLog
+from app.models.metric_rollup import MetricRollup
 from app.schemas.telemetry import (
     ServerNode,
     SystemMetrics,
@@ -36,7 +38,6 @@ def effective_thresholds(server: Server) -> ServerThresholds:
 def list_servers(db: Session = Depends(get_db)):
     servers = db.query(Server).all()
     now = datetime.now(timezone.utc)
-    threshold = timedelta(seconds=OFFLINE_THRESHOLD_SECONDS)
 
     result = []
     for server in servers:
@@ -44,7 +45,8 @@ def list_servers(db: Session = Depends(get_db)):
         if last_seen and last_seen.tzinfo is None:
             last_seen = last_seen.replace(tzinfo=timezone.utc)
 
-        is_online = bool(last_seen and now - last_seen < threshold)
+        threshold_seconds = server.offline_threshold_seconds or OFFLINE_THRESHOLD_SECONDS
+        is_online = bool(last_seen and (now - last_seen).total_seconds() < threshold_seconds)
 
         latest = (
             db.query(MetricLog)
@@ -149,43 +151,50 @@ def get_uptime(server_id: str, days: int = 30, db: Session = Depends(get_db)):
 TARGET_POINTS = 200
 
 
-def downsample(rows: list[MetricLog]) -> list[SystemMetrics]:
-    if len(rows) <= TARGET_POINTS:
-        return [
-            SystemMetrics(
-                timestamp=int(row.timestamp.replace(tzinfo=timezone.utc).timestamp() * 1000),
-                cpuUsage=row.cpu_usage,
-                ramUsage=row.ram_usage,
-                diskUsage=row.disk_usage,
-                networkRxKb=row.network_rx_kb,
-                networkTxKb=row.network_tx_kb,
-            )
-            for row in rows
-        ]
+def log_to_metric(row: MetricLog) -> SystemMetrics:
+    return SystemMetrics(
+        timestamp=int(as_utc(row.timestamp).timestamp() * 1000),
+        cpuUsage=row.cpu_usage,
+        ramUsage=row.ram_usage,
+        diskUsage=row.disk_usage,
+        networkRxKb=row.network_rx_kb,
+        networkTxKb=row.network_tx_kb,
+    )
 
-    bucket_size = len(rows) / TARGET_POINTS
+
+def rollup_to_metric(row: MetricRollup) -> SystemMetrics:
+    mid = as_utc(row.bucket_start).timestamp() + ROLLUP_BUCKET_SECONDS / 2
+    return SystemMetrics(
+        timestamp=int(mid * 1000),
+        cpuUsage=row.cpu_avg,
+        ramUsage=row.ram_avg,
+        diskUsage=row.disk_avg,
+        networkRxKb=row.rx_avg,
+        networkTxKb=row.tx_avg,
+    )
+
+
+def downsample(points: list[SystemMetrics]) -> list[SystemMetrics]:
+    if len(points) <= TARGET_POINTS:
+        return points
+
+    bucket_size = len(points) / TARGET_POINTS
     result = []
 
     for i in range(TARGET_POINTS):
-        start = int(i * bucket_size)
-        end = int((i + 1) * bucket_size)
-        chunk = rows[start:end]
+        chunk = points[int(i * bucket_size):int((i + 1) * bucket_size)]
         if not chunk:
             continue
 
         count = len(chunk)
-        avg_ts = int(
-            sum(row.timestamp.replace(tzinfo=timezone.utc).timestamp() for row in chunk) / count * 1000
-        )
-
         result.append(
             SystemMetrics(
-                timestamp=avg_ts,
-                cpuUsage=sum(row.cpu_usage for row in chunk) / count,
-                ramUsage=sum(row.ram_usage for row in chunk) / count,
-                diskUsage=sum(row.disk_usage for row in chunk) / count,
-                networkRxKb=sum(row.network_rx_kb for row in chunk) / count,
-                networkTxKb=sum(row.network_tx_kb for row in chunk) / count,
+                timestamp=int(sum(p.timestamp for p in chunk) / count),
+                cpuUsage=sum(p.cpu_usage for p in chunk) / count,
+                ramUsage=sum(p.ram_usage for p in chunk) / count,
+                diskUsage=sum(p.disk_usage for p in chunk) / count,
+                networkRxKb=sum(p.network_rx_kb for p in chunk) / count,
+                networkTxKb=sum(p.network_tx_kb for p in chunk) / count,
             )
         )
 
@@ -194,14 +203,31 @@ def downsample(rows: list[MetricLog]) -> list[SystemMetrics]:
 
 @router.get("/servers/{server_id}/history", response_model=list[SystemMetrics], response_model_by_alias=True)
 def get_history(server_id: str, minutes: int = 60, db: Session = Depends(get_db)):
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(minutes=minutes)
 
     rows = (
         db.query(MetricLog)
-        .filter(MetricLog.server_id == server_id, MetricLog.timestamp >= cutoff)
-        .order_by(MetricLog.timestamp.asc())
+        .filter(MetricLog.server_id == server_id, MetricLog.timestamp >= window_start)
+        .order_by(MetricLog.timestamp.desc())
         .limit(20000)
         .all()
     )
+    rows.reverse()
+    points = [log_to_metric(row) for row in rows]
 
-    return downsample(rows)
+    if RETENTION_DAYS > 0:
+        boundary = as_utc(rows[0].timestamp) if rows else now
+        rollups = (
+            db.query(MetricRollup)
+            .filter(
+                MetricRollup.server_id == server_id,
+                MetricRollup.bucket_start >= window_start,
+                MetricRollup.bucket_start <= boundary - timedelta(seconds=ROLLUP_BUCKET_SECONDS),
+            )
+            .order_by(MetricRollup.bucket_start.asc())
+            .all()
+        )
+        points = [rollup_to_metric(r) for r in rollups] + points
+
+    return downsample(points)

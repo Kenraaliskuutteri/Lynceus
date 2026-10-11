@@ -7,6 +7,7 @@ from app.config import CORS_ORIGINS
 from app.core.auth import seed_admin_user
 from app.core.database import SessionLocal, init_db
 from app.core.offline_monitor import run_offline_monitor
+from app.core.retention import run_retention
 from app.core.security import validate_startup_config
 from app.api.v1 import auth as auth_api
 from app.api.v1 import servers as servers_api
@@ -37,6 +38,7 @@ async def on_startup():
         db.close()
 
     asyncio.create_task(run_offline_monitor())
+    asyncio.create_task(run_retention())
 
 
 app.include_router(auth_api.router, prefix="/api/v1")

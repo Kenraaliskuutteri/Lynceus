@@ -10,6 +10,8 @@ const RANGES: RangeOption[] = [
   { label: '1h', minutes: 60 },
   { label: '6h', minutes: 360 },
   { label: '24h', minutes: 1440 },
+  { label: '7d', minutes: 10080 },
+  { label: '30d', minutes: 43200 },
 ];
 
 interface Props {
