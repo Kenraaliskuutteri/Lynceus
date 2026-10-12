@@ -167,3 +167,29 @@ export async function triggerWebhookTest(): Promise<WebhookTestResult> {
   if (!response.ok) throw new Error(`Failed to trigger webhook test: ${response.status}`);
   return response.json();
 }
+
+async function downloadCsv(path: string, filename: string): Promise<void> {
+  const response = await authFetch(path);
+  if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function exportHistoryCsv(serverId: string, minutes: number): Promise<void> {
+  return downloadCsv(`/api/v1/servers/${serverId}/history/export?minutes=${minutes}`, `${serverId}-history-${minutes}m.csv`);
+}
+
+export function exportAlertsCsv(serverId?: string, status?: string): Promise<void> {
+  const params = new URLSearchParams();
+  if (serverId) params.append('server_id', serverId);
+  if (status) params.append('status', status);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return downloadCsv(`/api/v1/alerts/export${query}`, serverId ? `${serverId}-alerts.csv` : 'alerts.csv');
+}

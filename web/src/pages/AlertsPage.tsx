@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertEvent, AlertConfig } from '../types/telemetry';
-import { fetchAlerts, fetchAlertConfig, triggerWebhookTest } from '../services/api';
+import { fetchAlerts, fetchAlertConfig, triggerWebhookTest, exportAlertsCsv } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const METRIC_LABELS: Record<string, string> = {
@@ -99,6 +99,16 @@ export const AlertsPage: React.FC = () => {
               {isTesting ? 'Sending...' : 'Test Webhook'}
             </button>
           )}
+
+          <button
+            className="secondary-button"
+            style={{ fontSize: '0.8rem' }}
+            onClick={() =>
+              exportAlertsCsv(undefined, filter === 'all' ? undefined : filter).catch((e: Error) => setError(e.message))
+            }
+          >
+            Export CSV
+          </button>
 
           <div style={{ display: 'flex', gap: '4px' }}>
             {(['all', 'triggered', 'resolved'] as const).map((f) => (

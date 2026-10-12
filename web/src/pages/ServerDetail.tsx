@@ -9,6 +9,7 @@ import { AlertBanner } from '../components/AlertBanner';
 import { UptimeStat } from '../components/UptimeStat';
 import { MetricStats } from '../components/MetricStats';
 import { RangeSelector } from '../components/RangeSelector';
+import { exportHistoryCsv } from '../services/api';
 
 interface Props {
   node: ServerNode;
@@ -17,6 +18,7 @@ interface Props {
 
 export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
   const [rangeMinutes, setRangeMinutes] = useState(60);
+  const [exportError, setExportError] = useState<string | null>(null);
   const { history, status, activeAlerts } = useMetrics(node.id, rangeMinutes);
 
   return (
@@ -34,7 +36,20 @@ export const ServerDetail: React.FC<Props> = ({ node, onBack }) => {
 
       <UptimeStat serverId={node.id} />
       <AlertBanner alerts={activeAlerts} />
-      <RangeSelector value={rangeMinutes} onChange={setRangeMinutes} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+        <RangeSelector value={rangeMinutes} onChange={setRangeMinutes} />
+        <button
+          className="secondary-button"
+          style={{ fontSize: '0.8rem' }}
+          onClick={() => {
+            setExportError(null);
+            exportHistoryCsv(node.id, rangeMinutes).catch((e: Error) => setExportError(e.message));
+          }}
+        >
+          Export CSV
+        </button>
+      </div>
+      {exportError && <div className="error-alert">{exportError}</div>}
 
       {history.length === 0 ? (
         <div className="panel">

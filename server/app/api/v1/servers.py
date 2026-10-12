@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import desc
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.config import ALERT_THRESHOLDS, OFFLINE_THRESHOLD_SECONDS, RETENTION_DAYS, ROLLUP_BUCKET_SECONDS
-from app.core.database import get_db
+from app.core.csv_export import csv_response
+from app.core.database import SessionLocal, get_db
 from app.core.retention import as_utc
 from app.core.security import require_admin, require_user
 from app.models.alert import AlertEvent
@@ -231,3 +232,90 @@ def get_history(server_id: str, minutes: int = 60, db: Session = Depends(get_db)
         points = [rollup_to_metric(r) for r in rollups] + points
 
     return downsample(points)
+
+
+HISTORY_CSV_HEADER = [
+    "timestamp",
+    "resolution",
+    "samples",
+    "cpu_usage",
+    "cpu_max",
+    "ram_usage",
+    "ram_max",
+    "disk_usage",
+    "disk_max",
+    "network_rx_kb",
+    "network_rx_max",
+    "network_tx_kb",
+    "network_tx_max",
+]
+
+
+@router.get("/servers/{server_id}/history/export")
+def export_history(server_id: str, minutes: int = Query(default=60, ge=1)):
+    window_start = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+
+    def rows():
+        db = SessionLocal()
+        try:
+            first_raw = (
+                db.query(func.min(MetricLog.timestamp))
+                .filter(MetricLog.server_id == server_id, MetricLog.timestamp >= window_start)
+                .scalar()
+            )
+
+            if RETENTION_DAYS > 0:
+                boundary = as_utc(first_raw) if first_raw else datetime.now(timezone.utc)
+                rollups = (
+                    db.query(MetricRollup)
+                    .filter(
+                        MetricRollup.server_id == server_id,
+                        MetricRollup.bucket_start >= window_start,
+                        MetricRollup.bucket_start <= boundary - timedelta(seconds=ROLLUP_BUCKET_SECONDS),
+                    )
+                    .order_by(MetricRollup.bucket_start.asc())
+                    .yield_per(1000)
+                )
+                for r in rollups:
+                    yield [
+                        as_utc(r.bucket_start).isoformat(),
+                        "rollup",
+                        r.samples,
+                        r.cpu_avg,
+                        r.cpu_max,
+                        r.ram_avg,
+                        r.ram_max,
+                        r.disk_avg,
+                        r.disk_max,
+                        r.rx_avg,
+                        r.rx_max,
+                        r.tx_avg,
+                        r.tx_max,
+                    ]
+
+            raw = (
+                db.query(MetricLog)
+                .filter(MetricLog.server_id == server_id, MetricLog.timestamp >= window_start)
+                .order_by(MetricLog.timestamp.asc())
+                .yield_per(1000)
+            )
+            for r in raw:
+                yield [
+                    as_utc(r.timestamp).isoformat(),
+                    "raw",
+                    1,
+                    r.cpu_usage,
+                    r.cpu_usage,
+                    r.ram_usage,
+                    r.ram_usage,
+                    r.disk_usage,
+                    r.disk_usage,
+                    r.network_rx_kb,
+                    r.network_rx_kb,
+                    r.network_tx_kb,
+                    r.network_tx_kb,
+                ]
+        finally:
+            db.close()
+
+    return csv_response(f"{server_id}-history-{minutes}m.csv", HISTORY_CSV_HEADER, rows())

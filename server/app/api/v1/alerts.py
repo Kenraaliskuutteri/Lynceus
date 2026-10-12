@@ -6,7 +6,9 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.alerts import serialize_alert
-from app.core.database import get_db
+from app.core.csv_export import csv_response
+from app.core.database import SessionLocal, get_db
+from app.core.retention import as_utc
 from app.core.security import require_admin, require_user
 from app.models.alert import AlertEvent
 from app.schemas.alert import AlertEventOut
@@ -45,6 +47,49 @@ def list_alerts(
         )
         for row in rows
     ]
+
+
+ALERTS_CSV_HEADER = [
+    "id",
+    "server_id",
+    "metric",
+    "value",
+    "threshold",
+    "status",
+    "triggered_at",
+    "resolved_at",
+    "acknowledged_at",
+]
+
+
+@router.get("/alerts/export")
+def export_alerts(server_id: Optional[str] = Query(default=None), status: Optional[str] = Query(default=None)):
+    def rows():
+        db = SessionLocal()
+        try:
+            query = db.query(AlertEvent)
+            if server_id:
+                query = query.filter(AlertEvent.server_id == server_id)
+            if status:
+                query = query.filter(AlertEvent.status == status)
+
+            for row in query.order_by(desc(AlertEvent.triggered_at)).yield_per(1000):
+                yield [
+                    row.id,
+                    row.server_id,
+                    row.metric,
+                    row.value,
+                    row.threshold,
+                    row.status,
+                    as_utc(row.triggered_at).isoformat(),
+                    as_utc(row.resolved_at).isoformat() if row.resolved_at else "",
+                    as_utc(row.acknowledged_at).isoformat() if row.acknowledged_at else "",
+                ]
+        finally:
+            db.close()
+
+    name = f"{server_id}-alerts.csv" if server_id else "alerts.csv"
+    return csv_response(name, ALERTS_CSV_HEADER, rows())
 
 
 async def _set_acknowledged(alert_id: int, value: Optional[datetime], db: Session) -> AlertEventOut:
