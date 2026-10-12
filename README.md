@@ -1,83 +1,203 @@
-# Lynceus
+<h1 align="center">Lynceus</h1>
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-0.0.0-green.svg)]()[![Build Status](https://img.shields.io/badge/build-testing-cyan.svg)]()
+<p align="center">Linux server monitoring with a C agent, a FastAPI backend and a React dashboard.</p>
 
-Lynceus is currently under active development.
-
-The core architecture is being built and tested. The project is not yet intended to replace established production monitoring solutions, but early testers, feedback, and contributors are welcome.
-
-Lynceus is a hybrid system monitoring platform designed to bridge low-level C telemetry collection with modern, real-time web visualization. 
-
-The architecture consists of a lightweight C daemon running directly on monitored Linux hosts, an asynchronous Python backend handling persistent storage and stream orchestration, and a React frontend for dynamic status visualization.
-
-## Architecture & Data Flow
-
-1. **Agent (C11):** Interrogates Linux `/proc` interfaces (`/proc/stat`, `/proc/meminfo`, `/proc/net/dev`) to sample performance metrics with minimal system overhead, streaming payloads over WebSockets.
-2. **Backend (Python / FastAPI):** Handles concurrent WebSocket connections from distributed agents, persists timeseries logs to PostgreSQL, and broadcasts real-time telemetry to connected dashboard clients.
-3. **Frontend (React / TypeScript):** Renders live, responsive metric charts via Recharts, featuring connection status tracking and automated threshold warnings.
-4. **AI Implementation** Whilst not directly shown anywhere in the app or the daemon. Usage of Large language models (Such as Claude Code, Google Gemini ...) has been used for Fixing code, writing some parts of the app and fixing some issues with server to app conections.
-
-## Interface Preview
-
-### Authentication & Host Connection
 <p align="center">
-  <img src="./assets/lynclogin.png" alt="Lynceus Login Screen" />
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
+<img src="https://img.shields.io/badge/version-0.0.0-green.svg" alt="Version" />
+<img src="https://img.shields.io/badge/build-testing-cyan.svg" alt="Build Status" />
 </p>
 
-### Cluster Telemetry View
 <p align="center">
-  <img src="./assets/lyncmainmenu.png" alt="Lynceus Dashboard Overview" />
+<img src="./assets/lyncmainmenu.png" alt="Lynceus dashboard" />
 </p>
 
-### Server Monitoring View
-<p aling="center">
-  <img src="./assets/lyncserver.png" alt="Lynceus Server Monitoring Dashboard Overview">
+## Overview
+
+Lynceus collects CPU, memory, disk and network metrics from Linux hosts and shows them live in a web dashboard or a desktop app. A small C daemon runs on each monitored host and streams samples to the backend, which stores them, raises alerts and forwards live data to connected dashboards.
+
+The dashboard only reads. Nothing on a monitored server can be changed from it, so any action that needs to be taken means logging in to the machine. This keeps the exposed surface small and is a deliberate design choice.
+
+The project is under active development and is not yet a replacement for established production monitoring tools. Testers, feedback and contributors are welcome.
+
+## Contents
+
+* [Features](#features)
+* [Architecture](#architecture)
+* [Screenshots](#screenshots)
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [Configuration](#configuration)
+* [Security](#security)
+* [Project Status](#project-status)
+* [AI Usage](#ai-usage)
+* [License](#license)
+
+## Features
+
+* Live CPU, memory, disk and network throughput for every server
+* History from 15 minutes up to 30 days
+* Alerts for CPU, memory and disk, with hysteresis, acknowledgement and optional acknowledgement expiry
+* Offline detection with its own alert and an uptime percentage for each server
+* Global alert thresholds, with overrides for each server
+* Discord and Slack webhook notifications
+* Automatic rollup of old samples into five minute averages and peaks
+* CSV export of server history and alert history
+* Admin and viewer roles
+* Desktop app built with Tauri
+
+## Architecture
+
+Agent. A C11 daemon that reads `/proc/stat`, `/proc/meminfo`, `/proc/net/dev` and the root filesystem, then sends a sample over a WebSocket at a fixed interval (two seconds by default). It reconnects automatically and can run in the foreground, as a daemon, or under systemd.
+
+Backend. A FastAPI application that accepts agent connections, writes samples to the database, evaluates alerts, detects agents that stopped reporting, and broadcasts live data to dashboard clients over WebSockets. It uses SQLite by default and can use PostgreSQL.
+
+Frontend. A React and TypeScript application built with Vite and Recharts. It runs in a browser or inside a Tauri window.
+
+## Screenshots
+
+<p align="center">
+<img src="./assets/lynclogin.png" alt="Sign in" />
 </p>
 
-## Tech Stack
+<p align="center">
+<img src="./assets/lyncserver.png" alt="Server detail" />
+</p>
 
-* **Agent Layer:** C11, POSIX Threads, Native Sockets, libwebsockets
-* **Backend Layer:** Python 3.11, FastAPI, AsyncIO, SQLAlchemy, PostgreSQL
-* **Frontend Layer:** React 18, TypeScript, Vite, Recharts, Tailwind CSS
-* **Infrastructure:** Docker, Docker Compose
+<p align="center">
+<img src="./assets/lyncservercharts.png" alt="Server charts" />
+</p>
 
-## Core Features
+<p align="center">
+<img src="./assets/lyncservernetwork.png" alt="Network throughput" />
+</p>
 
-* **Sub-Second Telemetry:** Low-latency streaming of CPU utilization, RAM distribution, and network interface throughput.
-* **Non-Blocking Architecture:** Fully asynchronous Python backend capable of multiplexing multiple agent ingestion feeds.
-* **Modular Visualizations:** React components designed for isolated metric monitoring and multi-node dashboard layouts.
+<p align="center">
+<img src="./assets/lyncalerts.png" alt="Alert history" />
+</p>
 
-## Getting Started
+## Requirements
 
-## Dependencies
+Agent
 
-### Agent (C)
-* C11-compatible compiler (gcc or clang)
-* CMake ≥ 3.10
+* gcc or clang with C11 support
+* CMake 3.10 or newer
 * pkg-config
-* libwebsockets (dev headers — `libwebsockets-dev` on Debian/Ubuntu)
+* libwebsockets development headers (`libwebsockets-dev` on Debian and Ubuntu)
 
-### Backend (Python 3.11+)
-* fastapi
-* uvicorn[standard]
-* sqlalchemy
-* psycopg2-binary *(only if running against PostgreSQL instead of the default SQLite)*
+Backend
 
-Install with:
+* Python 3.11 or newer
+* fastapi, uvicorn[standard], sqlalchemy, pyjwt, argon2-cffi
+* psycopg2-binary, only when using PostgreSQL
 
+Frontend
+
+* Node.js and npm
+* For the desktop app, the Rust toolchain ([rustup](https://rustup.rs)) and the Tauri system libraries: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `libsoup-3.0-dev` and `patchelf` on Debian, Ubuntu and PikaOS
+
+## Installation
+
+### Server
+
+```bash
 cd server
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
+export LYNCEUS_JWT_SECRET=$(openssl rand -hex 32)
+export LYNCEUS_ADMIN_USERNAME=admin
+export LYNCEUS_ADMIN_PASSWORD=changeme
+uvicorn app.main:app --port 8000
+```
 
-### Frontend (Web / Tauri)
-* Node.js ≥ 18 and npm
-* Rust toolchain (via [rustup](https://rustup.rs))
-* Tauri system dependencies: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `libsoup-3.0-dev`, `patchelf` (Debian/Ubuntu/PikaOS)
+Use the same `LYNCEUS_JWT_SECRET` on every start. A new secret invalidates all signed in sessions.
 
-Install with:
+### Web dashboard
 
+```bash
 cd web
 npm install
-npm run build # web build only
-npx tauri build # native app bundle
+npm run dev
+```
+
+Open `http://localhost:5173`, enter the server address, for example `http://127.0.0.1:8000`, and sign in with the admin account.
+
+### Desktop app
+
+```bash
+cd web
+npm install
+npm run build
+npx tauri dev
+```
+
+The build step must run at least once because Tauri checks that `web/dist` exists when it compiles. Use `npx tauri build` to produce a release bundle.
+
+### Agent
+
+```bash
+cd agent
+cmake -S . -B build
+cmake --build build
+./build/lynceus-agent --host 127.0.0.1 --port 8000 --id myserver
+```
+
+A server appears in the dashboard the first time its agent connects, named after the id. Add `--key` when the server has `LYNCEUS_API_KEY` set, and `--tls` to connect over `wss`.
+
+Options can also be read from a file with `--config`. An example is in `agent/lynceus-agent.conf.example`. A systemd unit is provided in `agent/lynceus-agent.service`, and `agent/debian` contains Debian packaging.
+
+## Configuration
+
+The server is configured through environment variables.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LYNCEUS_JWT_SECRET` | none | Secret used to sign sessions. Required. |
+| `LYNCEUS_ADMIN_USERNAME` | none | Initial admin account name, created at startup. |
+| `LYNCEUS_ADMIN_PASSWORD` | none | Initial admin account password. |
+| `LYNCEUS_API_KEY` | empty | Key agents must send. When empty, agents are not authenticated. |
+| `LYNCEUS_DB_URL` | `sqlite:///./lynceus.db` | SQLAlchemy database URL. |
+| `LYNCEUS_CORS_ORIGINS` | `*` | Comma separated list of allowed origins. |
+| `LYNCEUS_JWT_ACCESS_MINUTES` | `15` | Access token lifetime. |
+| `LYNCEUS_JWT_REFRESH_DAYS` | `7` | Refresh token lifetime. |
+| `LYNCEUS_LOGIN_MAX_ATTEMPTS` | `5` | Failed logins before lockout. |
+| `LYNCEUS_LOGIN_LOCKOUT_MINUTES` | `15` | Lockout duration. |
+| `LYNCEUS_CPU_THRESHOLD` | `90` | CPU alert threshold in percent. |
+| `LYNCEUS_RAM_THRESHOLD` | `90` | Memory alert threshold in percent. |
+| `LYNCEUS_DISK_THRESHOLD` | `90` | Disk alert threshold in percent. |
+| `LYNCEUS_ALERT_HYSTERESIS_PERCENT` | `5` | How far below the threshold a value must fall before an alert resolves. |
+| `LYNCEUS_OFFLINE_THRESHOLD` | `10` | Seconds without data before a server is considered offline. |
+| `LYNCEUS_ACK_EXPIRY_HOURS` | `0` | Hours until an acknowledgement expires. 0 means never. |
+| `LYNCEUS_WEBHOOK_URL` | empty | Webhook that receives alert notifications. |
+| `LYNCEUS_WEBHOOK_FORMAT` | `auto` | Webhook payload format. `auto` detects Discord and Slack URLs. |
+| `LYNCEUS_RETENTION_DAYS` | `7` | Days of raw samples to keep before rollup. 0 disables retention. |
+| `LYNCEUS_ROLLUP_RETENTION_DAYS` | `365` | Days of rollups to keep. 0 keeps them indefinitely. |
+| `LYNCEUS_ROLLUP_BUCKET_SECONDS` | `300` | Rollup bucket size. |
+| `LYNCEUS_RETENTION_INTERVAL_SECONDS` | `3600` | How often the retention job runs. |
+
+Thresholds for a single server can be changed by an admin in the dashboard. They take precedence over the global values for that server.
+
+## Security
+
+Passwords are hashed with Argon2. Sessions use short lived access tokens and a refresh token stored in a cookie that is protected with a CSRF token. Repeated failed logins lock the account for a period. Accounts have either the admin or the viewer role, and only admins can acknowledge alerts, change thresholds or send a test webhook.
+
+For anything beyond local use, set `LYNCEUS_CORS_ORIGINS` to the dashboard origin, set `LYNCEUS_API_KEY`, and run the server behind TLS.
+
+## Project Status
+
+Known gaps:
+
+* The agent reports disk usage for the root filesystem only.
+* The agent does not send a hostname or address, so servers are listed by id with an unknown address.
+* There are no automated tests yet.
+* The database schema is created at startup and there are no migrations, so upgrades that change existing tables need a manual step.
+
+## AI Usage
+
+Large language models, including Claude and Gemini, were used to fix code, write parts of the application and debug connection issues between the server and the app. None of this is exposed in the application or the agent.
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).
