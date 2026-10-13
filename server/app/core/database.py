@@ -19,6 +19,6 @@ def get_db():
 
 
 def init_db():
-    from app.models import server, metric_log, metric_rollup, alert, user, refresh_token  # noqa: F401
+    from app.core.migrate import run_migrations
 
-    Base.metadata.create_all(bind=engine)
+    run_migrations()

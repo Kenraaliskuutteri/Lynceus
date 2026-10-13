@@ -88,7 +88,7 @@ Agent
 Backend
 
 * Python 3.11 or newer
-* fastapi, uvicorn[standard], sqlalchemy, pyjwt, argon2-cffi
+* fastapi, uvicorn[standard], sqlalchemy, alembic, pyjwt, argon2-cffi
 * psycopg2-binary, only when using PostgreSQL
 
 Frontend
@@ -113,6 +113,8 @@ uvicorn app.main:app --port 8000
 ```
 
 Use the same `LYNCEUS_JWT_SECRET` on every start. A new secret invalidates all signed in sessions.
+
+The database is created and upgraded automatically on startup using Alembic migrations. Back up the database before upgrading.
 
 ### Web dashboard
 
@@ -192,7 +194,6 @@ Known gaps:
 * The agent reports disk usage for the root filesystem only.
 * The agent does not send a hostname or address, so servers are listed by id with an unknown address.
 * There are no automated tests yet.
-* The database schema is created at startup and there are no migrations, so upgrades that change existing tables need a manual step.
 
 ## AI Usage
 
