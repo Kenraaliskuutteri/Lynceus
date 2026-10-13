@@ -150,6 +150,14 @@ A server appears in the dashboard the first time its agent connects, named after
 
 Options can also be read from a file with `--config`. An example is in `agent/lynceus-agent.conf.example`. A systemd unit is provided in `agent/lynceus-agent.service`, and `agent/debian` contains Debian packaging.
 
+### Tests
+
+```bash
+cd server
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Configuration
 
 The server is configured through environment variables.
@@ -193,7 +201,6 @@ Known gaps:
 
 * The agent reports disk usage for the root filesystem only.
 * The agent does not send a hostname or address, so servers are listed by id with an unknown address.
-* There are no automated tests yet.
 
 ## AI Usage
 
