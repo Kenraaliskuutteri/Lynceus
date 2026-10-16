@@ -5,7 +5,7 @@
 <p align="center">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
 <img src="https://img.shields.io/badge/version-1.0.0-green.svg" alt="Version" />
-<img src="https://img.shields.io/badge/build-testing-cyan.svg" alt="Build Status" />
+<img src="https://img.shields.io/badge/build-stable-cyan.svg" alt="Build Status" />
 </p>
 
 <p align="center">
