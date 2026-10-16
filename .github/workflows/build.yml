@@ -1,4 +1,4 @@
-name: CI
+name: lynceus
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
         working-directory: ./server
 
       - name: Run tests
-        run: pytest
+        run: python -m pytest
         working-directory: ./server
 
   build-agent:
@@ -47,7 +47,7 @@ jobs:
           sudo apt-get install -y debhelper cmake pkg-config libwebsockets-dev fakeroot dpkg-dev
 
       - name: Build package
-        run: dpkg-buildpackage -us -uc -b
+        run: dpkg-buildpackage -us -uc -b -d
         working-directory: ./agent
 
       - name: Upload Agent Package
