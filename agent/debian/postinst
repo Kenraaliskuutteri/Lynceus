@@ -1,5 +1,6 @@
 #!/bin/sh
 set -e
+. /usr/share/debconf/confmodule
 
 case "$1" in
     configure)
@@ -12,14 +13,25 @@ case "$1" in
                 --gecos "Lynceus agent" lynceus
         fi
 
+        chown lynceus:lynceus /var/log/lynceus
+
         if [ ! -e /etc/lynceus/agent.conf ]; then
-            install -o root -g lynceus -m 0640 \
-                /etc/lynceus/lynceus-agent.conf.example /etc/lynceus/agent.conf
+            db_get lynceus-agent/host; host="$RET"
+            db_get lynceus-agent/port; port="$RET"
+            db_get lynceus-agent/key; key="$RET"
+            db_get lynceus-agent/tls; tls="$RET"
+
+            install -o root -g lynceus -m 0640 /dev/null /etc/lynceus/agent.conf
+            {
+                echo "host=${host:-127.0.0.1}"
+                echo "port=${port:-8000}"
+                echo "id=$(hostname)"
+                echo "key=$key"
+                echo "interval=2"
+                echo "tls=${tls:-false}"
+                echo "insecure=false"
+            } > /etc/lynceus/agent.conf
         fi
-
-        chown -R lynceus:lynceus /var/log/lynceus
-
-        systemctl daemon-reload >/dev/null 2>&1 || true
         ;;
 esac
 

@@ -1,0 +1,22 @@
+Template: lynceus-agent/host
+Type: string
+Default: 127.0.0.1
+Description: Lynceus server address:
+ Hostname or IP address of the Lynceus server this agent reports to.
+
+Template: lynceus-agent/port
+Type: string
+Default: 8000
+Description: Lynceus server port:
+ Port the Lynceus server listens on.
+
+Template: lynceus-agent/key
+Type: password
+Description: Lynceus API key:
+ Leave empty if the server does not have LYNCEUS_API_KEY set.
+
+Template: lynceus-agent/tls
+Type: boolean
+Default: false
+Description: Connect over TLS?
+ Use wss instead of ws when connecting to the server.

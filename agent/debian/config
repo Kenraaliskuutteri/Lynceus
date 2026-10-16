@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+. /usr/share/debconf/confmodule
+
+if [ ! -e /etc/lynceus/agent.conf ]; then
+    db_input high lynceus-agent/host || true
+    db_input high lynceus-agent/port || true
+    db_input high lynceus-agent/key || true
+    db_input high lynceus-agent/tls || true
+    db_go || true
+fi
+
+exit 0

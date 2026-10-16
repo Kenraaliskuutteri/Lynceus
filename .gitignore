@@ -55,3 +55,16 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Debian packaging build output
+agent/debian/.debhelper/
+agent/debian/*.debhelper
+agent/debian/*.substvars
+agent/debian/files
+agent/debian/debhelper-build-stamp
+agent/debian/lynceus-agent/
+agent/obj-*/
+*.deb
+*.ddeb
+*.buildinfo
+*.changes
