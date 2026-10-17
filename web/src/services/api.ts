@@ -76,6 +76,26 @@ export async function refreshSession(host: string): Promise<boolean> {
   return true;
 }
 
+function tokenExpiresSoon(token: string): boolean {
+  try {
+    const body = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(body));
+    return payload.exp * 1000 - Date.now() < 30000;
+  } catch {
+    return true;
+  }
+}
+
+export async function getSocketToken(): Promise<string | null> {
+  const host = getHost();
+  if (!host) return null;
+  if (accessToken === null || tokenExpiresSoon(accessToken)) {
+    const refreshed = await refreshSession(host);
+    if (!refreshed) return null;
+  }
+  return accessToken;
+}
+
 export async function logoutSession(): Promise<void> {
   const host = getHost();
   if (host) {

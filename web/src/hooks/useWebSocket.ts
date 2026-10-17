@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 type Status = 'connecting' | 'open' | 'closed';
 
-export function useWebSocket(url: string | null) {
+export function useWebSocket(getUrl: (() => Promise<string | null>) | null) {
   const [status, setStatus] = useState<Status>('closed');
   const [lastMessage, setLastMessage] = useState<MessageEvent | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -10,11 +10,25 @@ export function useWebSocket(url: string | null) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!url) return;
+    if (!getUrl) return;
     let cancelled = false;
 
-    const connect = () => {
+    const retry = () => {
+      const delay = Math.min(1000 * 2 ** retryRef.current, 15000);
+      retryRef.current += 1;
+      timeoutRef.current = setTimeout(connect, delay);
+    };
+
+    const connect = async () => {
       setStatus('connecting');
+      const url = await getUrl();
+      if (cancelled) return;
+      if (!url) {
+        setStatus('closed');
+        retry();
+        return;
+      }
+
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -32,9 +46,7 @@ export function useWebSocket(url: string | null) {
       ws.onclose = () => {
         if (cancelled) return;
         setStatus('closed');
-        const delay = Math.min(1000 * 2 ** retryRef.current, 15000);
-        retryRef.current += 1;
-        timeoutRef.current = setTimeout(connect, delay);
+        retry();
       };
 
       ws.onerror = () => {
@@ -49,7 +61,7 @@ export function useWebSocket(url: string | null) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       wsRef.current?.close();
     };
-  }, [url]);
+  }, [getUrl]);
 
   const send = useCallback((data: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
