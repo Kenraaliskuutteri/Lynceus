@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { SystemMetrics, AlertEvent } from '../types/telemetry';
-import { fetchHistory, fetchAlerts } from '../services/api';
+import { fetchHistory, fetchAlerts, getSocketToken } from '../services/api';
 
 const LIVE_BUFFER_LIMIT = 500;
 
@@ -9,16 +9,19 @@ export function useMetrics(serverId: string | null, rangeMinutes: number = 60) {
   const [history, setHistory] = useState<SystemMetrics[]>([]);
   const [activeAlerts, setActiveAlerts] = useState<AlertEvent[]>([]);
 
-  const wsUrl = useMemo(() => {
+  const getUrl = useMemo(() => {
     if (!serverId) return null;
     const host = localStorage.getItem('lynceus_host');
     if (!host) return null;
-    const key = localStorage.getItem('lynceus_key') || '';
     const wsHost = host.replace(/^http/, 'ws');
-    return `${wsHost}/api/v1/ws/metrics/${serverId}?key=${encodeURIComponent(key)}`;
+    return async () => {
+      const token = await getSocketToken();
+      if (!token) return null;
+      return `${wsHost}/api/v1/ws/metrics/${serverId}?token=${encodeURIComponent(token)}`;
+    };
   }, [serverId]);
 
-  const { status, lastMessage } = useWebSocket(wsUrl);
+  const { status, lastMessage } = useWebSocket(getUrl);
 
   useEffect(() => {
     setHistory([]);
